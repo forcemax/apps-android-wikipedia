@@ -53,6 +53,8 @@ public class AboutActivity extends BaseActivity {
         }
 
         makeEverythingClickable(findViewById(R.id.about_container));
+
+        throw new RuntimeException("THROW!!!");
     }
 
     @OnClick(R.id.send_feedback_text) void onSendFeedbackClick(View v) {
