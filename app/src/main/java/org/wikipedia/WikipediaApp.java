@@ -155,7 +155,7 @@ public class WikipediaApp extends Application {
         // HockeyApp exception handling interferes with the test runner, so enable it only for
         // beta and stable releases
         if (!ReleaseUtil.isPreBetaRelease()) {
-            initExceptionHandling();
+            // initExceptionHandling();
         }
 
         refWatcher = Prefs.isMemoryLeakTestEnabled() ? LeakCanary.install(this) : RefWatcher.DISABLED;
