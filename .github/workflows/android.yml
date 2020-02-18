@@ -24,4 +24,4 @@ jobs:
         echo "key.alias=${{ secrets.ALIAS }}" >> ~/.sign/signing.properties
         echo "key.pass=${{ secrets.KEY_PASSWORD }}" >> ~/.sign/signing.properties
     - name: Build with Gradle
-      run: ./gradlew build
+      run: ./gradlew assembleRelease
