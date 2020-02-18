@@ -1,25 +1,29 @@
 package org.wikipedia.feed.view;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v7.widget.RecyclerView;
-import android.support.v7.widget.StaggeredGridLayoutManager;
 import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.recyclerview.widget.StaggeredGridLayoutManager;
+
 import org.wikipedia.feed.FeedCoordinatorBase;
+import org.wikipedia.feed.accessibility.AccessibilityCard;
 import org.wikipedia.feed.announcement.AnnouncementCardView;
-import org.wikipedia.feed.continuereading.ContinueReadingCardView;
+import org.wikipedia.feed.becauseyouread.BecauseYouReadCardView;
+import org.wikipedia.feed.dayheader.DayHeaderCardView;
 import org.wikipedia.feed.image.FeaturedImageCardView;
 import org.wikipedia.feed.model.Card;
 import org.wikipedia.feed.model.CardType;
 import org.wikipedia.feed.news.NewsListCardView;
 import org.wikipedia.feed.offline.OfflineCard;
 import org.wikipedia.feed.offline.OfflineCardView;
-import org.wikipedia.feed.offline.OfflineCompilationCardView;
 import org.wikipedia.feed.random.RandomCardView;
 import org.wikipedia.feed.searchbar.SearchCardView;
+import org.wikipedia.feed.suggestededits.SuggestedEditsCardView;
+import org.wikipedia.util.DimenUtil;
 import org.wikipedia.views.DefaultRecyclerAdapter;
 import org.wikipedia.views.DefaultViewHolder;
 import org.wikipedia.views.ItemTouchHelperSwipeAdapter;
@@ -28,8 +32,7 @@ public class FeedAdapter<T extends View & FeedCardView<?>> extends DefaultRecycl
     public interface Callback extends ItemTouchHelperSwipeAdapter.Callback,
             ListCardItemView.Callback, CardHeaderView.Callback,  FeaturedImageCardView.Callback,
             SearchCardView.Callback, NewsListCardView.Callback, AnnouncementCardView.Callback,
-            RandomCardView.Callback, OfflineCompilationCardView.Callback, ListCardView.Callback,
-            ContinueReadingCardView.Callback {
+            RandomCardView.Callback, ListCardView.Callback, BecauseYouReadCardView.Callback, SuggestedEditsCardView.Callback {
         void onShowCard(@Nullable Card card);
         void onRequestMore();
         void onRetryFromOffline();
@@ -59,6 +62,7 @@ public class FeedAdapter<T extends View & FeedCardView<?>> extends DefaultRecycl
         if (coordinator.finished()
                 && position == getItemCount() - 1
                 && !(item instanceof OfflineCard)
+                && !(item instanceof AccessibilityCard)
                 && item != lastCardReloadTrigger
                 && callback != null) {
             callback.onRequestMore();
@@ -79,6 +83,8 @@ public class FeedAdapter<T extends View & FeedCardView<?>> extends DefaultRecycl
         super.onViewAttachedToWindow(holder);
         if (holder.getView() instanceof SearchCardView) {
             adjustSearchView((SearchCardView) holder.getView());
+        } else if (holder.getView() instanceof DayHeaderCardView) {
+            adjustDayHeaderView((DayHeaderCardView) holder.getView());
         }
         holder.getView().setCallback(callback);
         if (callback != null) {
@@ -117,11 +123,19 @@ public class FeedAdapter<T extends View & FeedCardView<?>> extends DefaultRecycl
         StaggeredGridLayoutManager.LayoutParams layoutParams
                 = (StaggeredGridLayoutManager.LayoutParams) view.getLayoutParams();
         layoutParams.setFullSpan(true);
+        final int bottomMargin = 8;
+        layoutParams.bottomMargin = DimenUtil.roundedDpToPx(bottomMargin);
 
         if (feedView != null && feedView.getColumns() > 1) {
             layoutParams.leftMargin = ((View) view.getParent()).getWidth() / 6;
             layoutParams.rightMargin = layoutParams.leftMargin;
-            view.setLayoutParams(layoutParams);
         }
+        view.setLayoutParams(layoutParams);
+    }
+
+    private void adjustDayHeaderView(@NonNull DayHeaderCardView view) {
+        StaggeredGridLayoutManager.LayoutParams layoutParams
+                = (StaggeredGridLayoutManager.LayoutParams) view.getLayoutParams();
+        layoutParams.setFullSpan(true);
     }
 }

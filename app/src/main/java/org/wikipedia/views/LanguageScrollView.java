@@ -3,16 +3,20 @@ package org.wikipedia.views;
 import android.content.Context;
 import android.graphics.PorterDuff;
 import android.graphics.drawable.Drawable;
-import android.support.annotation.ColorInt;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.design.widget.TabLayout;
-import android.support.v4.content.ContextCompat;
 import android.util.AttributeSet;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+
+import androidx.annotation.ColorInt;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.content.res.AppCompatResources;
+import androidx.constraintlayout.widget.ConstraintLayout;
+
+import com.google.android.material.tabs.TabLayout;
 
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
@@ -23,20 +27,19 @@ import butterknife.BindView;
 import butterknife.ButterKnife;
 import butterknife.OnClick;
 
+import static org.wikipedia.search.SearchFragment.LANG_BUTTON_TEXT_SIZE_LARGER;
+import static org.wikipedia.search.SearchFragment.LANG_BUTTON_TEXT_SIZE_SMALLER;
 import static org.wikipedia.util.ResourceUtil.getThemedColor;
 
-public class LanguageScrollView extends LinearLayout {
+public class LanguageScrollView extends ConstraintLayout {
     public interface Callback {
         void onLanguageTabSelected(String selectedLanguageCode);
         void onLanguageButtonClicked();
     }
 
     @BindView(R.id.horizontal_scroll_languages) TabLayout horizontalLanguageScroll;
-    @BindView(R.id.more_languages) TextView moreButton;
     private Callback callback;
-    private List<String> languagecodes;
-    private static final int LANG_BUTTON_TEXT_SIZE_LARGER = 12;
-    private static final int LANG_BUTTON_TEXT_SIZE_SMALLER = 8;
+    private List<String> languageCodes;
 
     public LanguageScrollView(Context context) {
         super(context);
@@ -56,6 +59,7 @@ public class LanguageScrollView extends LinearLayout {
     private void init(Context context) {
         inflate(context, R.layout.view_language_scroll, this);
         ButterKnife.bind(this);
+        setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
         horizontalLanguageScroll.addOnTabSelectedListener(new TabLayout.OnTabSelectedListener() {
             @Override
             public void onTabSelected(TabLayout.Tab tab) {
@@ -80,19 +84,19 @@ public class LanguageScrollView extends LinearLayout {
             if (view != null) {
                 @ColorInt int color = getThemedColor(getContext(), R.attr.colorAccent);
                 @ColorInt int paperColor = getThemedColor(getContext(), R.attr.paper_color);
-                Drawable drawable = ContextCompat.getDrawable(getContext(), R.drawable.lang_button_shape);
+                Drawable drawable = AppCompatResources.getDrawable(getContext(), R.drawable.lang_button_shape);
                 updateTabLanguageCode(view, null, paperColor, drawable, color);
                 updateTabLanguageLabel(view, null, color);
             }
             if (callback != null) {
-                callback.onLanguageTabSelected(languagecodes.get(tab.getPosition()));
+                callback.onLanguageTabSelected(languageCodes.get(tab.getPosition()));
             }
         } else {
             View view = tab.getCustomView();
             if (view != null) {
                 @ColorInt int color = getThemedColor(getContext(), R.attr.material_theme_de_emphasised_color);
                 updateTabLanguageLabel(view, null, color);
-                updateTabLanguageCode(view, null, color, ContextCompat.getDrawable(getContext(), R.drawable.lang_button_shape_border), color);
+                updateTabLanguageCode(view, null, color, AppCompatResources.getDrawable(getContext(), R.drawable.lang_button_shape_border), color);
             }
         }
     }
@@ -105,7 +109,7 @@ public class LanguageScrollView extends LinearLayout {
             horizontalLanguageScroll.removeAllTabs();
         }
         this.callback = callback;
-        this.languagecodes = languageCodes;
+        this.languageCodes = languageCodes;
         for (int i = 0; i < languageCodes.size(); i++) {
             TabLayout.Tab tab = horizontalLanguageScroll.newTab();
             tab.setCustomView(createLanguageTab(languageCodes.get(i)));
@@ -123,13 +127,13 @@ public class LanguageScrollView extends LinearLayout {
         return tab;
     }
 
-    private void updateTabLanguageLabel(@NonNull View customView, @Nullable String languageCode, @ColorInt Integer textcolor) {
+    private void updateTabLanguageLabel(@NonNull View customView, @Nullable String languageCode, @ColorInt Integer textColor) {
         TextView languageLabelTextView = customView.findViewById(R.id.language_label);
         if (languageCode != null) {
             languageLabelTextView.setText(WikipediaApp.getInstance().language().getAppLanguageLocalizedName(languageCode));
         }
-        if (textcolor != null) {
-            languageLabelTextView.setTextColor(textcolor);
+        if (textColor != null) {
+            languageLabelTextView.setTextColor(textColor);
         }
     }
 

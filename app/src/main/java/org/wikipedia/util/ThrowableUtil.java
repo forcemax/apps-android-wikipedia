@@ -1,8 +1,9 @@
 package org.wikipedia.util;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import org.json.JSONException;
 import org.wikipedia.R;
@@ -34,7 +35,7 @@ public final class ThrowableUtil {
     private static boolean throwableContainsException(@NonNull Throwable e, Class<?> exClass) {
         Throwable t = e;
         while (t != null) {
-            if (t.getClass().equals(exClass)) {
+            if (exClass.isInstance(t)) {
                 return true;
             }
             t = t.getCause();
@@ -78,8 +79,11 @@ public final class ThrowableUtil {
 
     public static boolean isOffline(@Nullable Throwable caught) {
         return caught instanceof UnknownHostException
-                || caught instanceof SocketException
-                || caught instanceof SocketTimeoutException;
+                || caught instanceof SocketException;
+    }
+
+    public static boolean isTimeout(@Nullable Throwable caught) {
+        return caught instanceof SocketTimeoutException;
     }
 
     @SuppressWarnings("checkstyle:magicnumber") public static boolean is404(@NonNull Throwable caught) {
@@ -87,8 +91,7 @@ public final class ThrowableUtil {
     }
 
     public static boolean isNetworkError(@NonNull Throwable e) {
-        return ThrowableUtil.throwableContainsException(e, HttpStatusException.class)
-                || ThrowableUtil.throwableContainsException(e, UnknownHostException.class)
+        return ThrowableUtil.throwableContainsException(e, UnknownHostException.class)
                 || ThrowableUtil.throwableContainsException(e, TimeoutException.class)
                 || ThrowableUtil.throwableContainsException(e, SSLException.class);
     }

@@ -1,7 +1,7 @@
 package org.wikipedia.feed.news;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.VisibleForTesting;
+import androidx.annotation.NonNull;
+import androidx.annotation.VisibleForTesting;
 
 import org.wikipedia.dataclient.WikiSite;
 import org.wikipedia.feed.model.CardType;
@@ -37,6 +37,6 @@ public class NewsListCard extends ListCard<NewsItemCard> {
     }
 
     @Override protected int dismissHashCode() {
-        return (int) TimeUnit.MILLISECONDS.toDays(date.baseCalendar().getTime().getTime());
+        return (int) TimeUnit.MILLISECONDS.toDays(date.baseCalendar().getTime().getTime()) + wikiSite().hashCode();
     }
 }

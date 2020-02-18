@@ -2,15 +2,17 @@ package org.wikipedia.readinglist;
 
 import android.app.Activity;
 import android.content.Intent;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v7.app.AlertDialog;
 import android.view.View;
 import android.widget.CheckBox;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
+
 import org.wikipedia.R;
+import org.wikipedia.WikipediaApp;
 import org.wikipedia.analytics.LoginFunnel;
+import org.wikipedia.events.ReadingListsEnableSyncStatusEvent;
 import org.wikipedia.login.LoginActivity;
 import org.wikipedia.page.LinkMovementMethodExt;
 import org.wikipedia.readinglist.database.ReadingListDbHelper;
@@ -22,6 +24,8 @@ import org.wikipedia.util.FeedbackUtil;
 import org.wikipedia.util.StringUtil;
 
 public final class ReadingListSyncBehaviorDialogs {
+
+    private static boolean PROMPT_LOGIN_TO_SYNC_DIALOG_SHOWING = false;
 
     public static void detectedRemoteTornDownDialog(@NonNull Activity activity) {
         new AlertDialog.Builder(activity)
@@ -45,9 +49,7 @@ public final class ReadingListSyncBehaviorDialogs {
         CheckBox checkbox = view.findViewById(R.id.dialog_checkbox);
         message.setText(StringUtil.fromHtml(activity.getString(R.string.reading_list_prompt_turned_sync_on_dialog_text)));
         message.setMovementMethod(new LinkMovementMethodExt(
-                (@NonNull String url, @Nullable String notUsed) -> {
-                    FeedbackUtil.showAndroidAppFAQ(activity);
-                }));
+                (@NonNull String url) -> FeedbackUtil.showAndroidAppFAQ(activity)));
         new AlertDialog.Builder(activity)
                 .setCancelable(false)
                 .setTitle(R.string.reading_list_prompt_turned_sync_on_dialog_title)
@@ -60,12 +62,13 @@ public final class ReadingListSyncBehaviorDialogs {
                 .setNegativeButton(R.string.reading_list_prompt_turned_sync_on_dialog_no_thanks, null)
                 .setOnDismissListener((dialog) -> {
                     Prefs.shouldShowReadingListSyncEnablePrompt(!checkbox.isChecked());
+                    WikipediaApp.getInstance().getBus().post(new ReadingListsEnableSyncStatusEvent());
                 })
                 .show();
     }
 
     static void promptLogInToSyncDialog(@NonNull Activity activity) {
-        if (!Prefs.shouldShowReadingListSyncEnablePrompt()) {
+        if (!Prefs.shouldShowReadingListSyncEnablePrompt() || PROMPT_LOGIN_TO_SYNC_DIALOG_SHOWING) {
             return;
         }
         View view = activity.getLayoutInflater().inflate(R.layout.dialog_with_checkbox, null);
@@ -73,9 +76,7 @@ public final class ReadingListSyncBehaviorDialogs {
         CheckBox checkbox = view.findViewById(R.id.dialog_checkbox);
         message.setText(StringUtil.fromHtml(activity.getString(R.string.reading_lists_login_reminder_text_with_link)));
         message.setMovementMethod(new LinkMovementMethodExt(
-                (@NonNull String url, @Nullable String notUsed) -> {
-                    FeedbackUtil.showAndroidAppFAQ(activity);
-                }));
+                (@NonNull String url) -> FeedbackUtil.showAndroidAppFAQ(activity)));
         new AlertDialog.Builder(activity)
                 .setCancelable(false)
                 .setTitle(R.string.reading_list_login_reminder_title)
@@ -89,9 +90,11 @@ public final class ReadingListSyncBehaviorDialogs {
                         })
                 .setNegativeButton(R.string.reading_list_prompt_turned_sync_on_dialog_no_thanks, null)
                 .setOnDismissListener((dialog) -> {
+                    PROMPT_LOGIN_TO_SYNC_DIALOG_SHOWING = false;
                     Prefs.shouldShowReadingListSyncEnablePrompt(!checkbox.isChecked());
                 })
                 .show();
+        PROMPT_LOGIN_TO_SYNC_DIALOG_SHOWING = true;
     }
 
     public static void removeExistingListsOnLogoutDialog(@NonNull Activity activity) {

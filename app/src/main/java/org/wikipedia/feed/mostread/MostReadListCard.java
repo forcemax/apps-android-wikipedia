@@ -1,15 +1,16 @@
 package org.wikipedia.feed.mostread;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.annotation.StringRes;
-import android.support.annotation.VisibleForTesting;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
+import androidx.annotation.VisibleForTesting;
 
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
 import org.wikipedia.dataclient.WikiSite;
-import org.wikipedia.dataclient.restbase.page.RbPageSummary;
+import org.wikipedia.dataclient.page.PageSummary;
 import org.wikipedia.feed.model.CardType;
 import org.wikipedia.feed.model.ListCard;
 import org.wikipedia.util.DateUtil;
@@ -39,10 +40,10 @@ public class MostReadListCard extends ListCard<MostReadItemCard> {
     }
 
     @NonNull @VisibleForTesting
-    public static List<MostReadItemCard> toItems(@NonNull List<RbPageSummary> articles,
+    public static List<MostReadItemCard> toItems(@NonNull List<PageSummary> articles,
                                           @NonNull WikiSite wiki) {
         List<MostReadItemCard> cards = new ArrayList<>();
-        for (RbPageSummary article : articles) {
+        for (PageSummary article : articles) {
             cards.add(new MostReadItemCard(article, wiki));
         }
         return cards;
@@ -58,6 +59,6 @@ public class MostReadListCard extends ListCard<MostReadItemCard> {
 
     @Override
     protected int dismissHashCode() {
-        return (int) TimeUnit.MILLISECONDS.toDays(articles.date().getTime());
+        return (int) TimeUnit.MILLISECONDS.toDays(articles.date().getTime()) + wikiSite().hashCode();
     }
 }

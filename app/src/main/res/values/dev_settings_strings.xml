@@ -6,23 +6,28 @@
     <string name="show_developer_settings_enabled">You are now a Wikipedia developer!</string>
     <string name="show_developer_settings_already_enabled">You are already a Wikipedia developer!</string>
     <string name="menu_developer_settings">@string/developer_settings_activity_title</string>
-    <string name="preferences_developer_cookies_heading">Cookies</string>
     <string name="preferences_developer_misc_heading">Miscellaneous</string>
     <string name="preferences_developer_onboarding_heading">Onboarding</string>
     <string name="preferences_developer_feature_testing_heading">A/B feature testing</string>
+
+    <string name="preferences_developer_announcements_heading">Announcements</string>
+    <string name="preferences_developer_announcement_country_override">Country Override</string>
+    <string name="preferences_developer_announcement_country_override_hint">Type a two-letter, all caps country code.</string>
+    <string name="preferences_developer_announcement_ignore_date">Ignore date</string>
+    <string name="preferences_developer_announcement_version_code_hint">Set to 0 to reset.</string>
+    <string name="preferences_developer_announcement_reset_shown_dialogs_key">announcement_shown_dialogs</string>
+    <string name="preferences_developer_announcement_reset_shown_dialogs_title">Reset shown dialogs</string>
+    <string name="preferences_developer_announcement_reset_shown_dialogs_summary">%d shown dialog(s).</string>
+
     <string name="preferences_developer_restbase_heading">RESTBase access</string>
     <string name="preferences_developer_logging_heading">Logging</string>
     <string name="preferences_developer_retrofit_log_level">Retrofit Log Level (restart required)</string>
-    <string name="preferences_developer_cookies_key">cookies</string>
     <string name="preferences_developer_crash_key">crash</string>
     <string name="preferences_developer_crash_title">Crash</string>
     <string name="preferences_developer_crash_summary">Tap here to crash the app</string>
     <string name="preferences_developer_session_timeout_title">Session timeout (minutes)</string>
     <string name="preferences_developer_remote_log_title">Remote logging</string>
     <string name="preferences_developer_remote_log_summary">Type a message to send.</string>
-    <string name="preferences_developer_user_option_key">userOption</string>
-    <string name="preferences_developer_user_option_title">User options</string>
-    <string name="preferences_developer_user_option_summary">Tap here to show user options</string>
     <string name="preferences_developer_reading_list_category">Reading Lists</string>
     <string name="preferences_developer_add_articles">Add articles</string>
     <string name="preferences_developer_add_lists">Add reading lists</string>
@@ -30,5 +35,7 @@
     <string name="preferences_developer_test_delete_lists">Delete Test reading lists</string>
     <string name="preferences_developer_summary_configure_articles">Type the number of articles</string>
     <string name="preferences_developer_summary_configure_reading_lists">Type the number of lists</string>
-
+    <string name="preferences_developer_suggested_edits_category">Suggested edits</string>
+    <string name="cancel">Cancel</string>
+    <string name="ok">OK</string>
 </resources>

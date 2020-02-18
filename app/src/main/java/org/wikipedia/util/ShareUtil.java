@@ -1,5 +1,6 @@
 package org.wikipedia.util;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.LabeledIntent;
@@ -8,14 +9,14 @@ import android.graphics.Bitmap;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Parcelable;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.content.FileProvider;
 import android.widget.Toast;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.content.FileProvider;
 
 import org.wikipedia.BuildConfig;
 import org.wikipedia.R;
-import org.wikipedia.concurrency.SaneAsyncTask;
 import org.wikipedia.page.PageTitle;
 import org.wikipedia.util.log.L;
 
@@ -25,10 +26,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import io.reactivex.Observable;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.schedulers.Schedulers;
+
 import static org.apache.commons.lang3.StringUtils.defaultString;
 
 public final class ShareUtil {
-    public static final String APP_PACKAGE_REGEX = "org\\.wikipedia.*";
+    private static final String APP_PACKAGE_REGEX = "org\\.wikipedia.*";
     private static final String FILE_PROVIDER_AUTHORITY = BuildConfig.APPLICATION_ID + ".fileprovider";
     private static final String FILE_PREFIX = "file://";
 
@@ -41,8 +46,8 @@ public final class ShareUtil {
         shareIntent.putExtra(Intent.EXTRA_SUBJECT, subject);
         shareIntent.putExtra(Intent.EXTRA_TEXT, text);
         shareIntent.setType("text/plain");
-        Intent chooserIntent = createChooserIntent(shareIntent,
-                context.getString(R.string.share_via), context);
+
+        Intent chooserIntent = Intent.createChooser(shareIntent, context.getString(R.string.share_via));
         if (chooserIntent == null) {
             showUnresolvableIntentMessage(context);
         } else {
@@ -62,31 +67,21 @@ public final class ShareUtil {
      * it's overwritten every time an image is shared from the app, so that it takes up a
      * constant amount of space.
      */
+    @SuppressLint("CheckResult")
     public static void shareImage(final Context context, final Bitmap bmp,
                                   final String imageFileName, final String subject,
                                   final String text) {
-        new SaneAsyncTask<Uri>() {
-            @Override
-            public Uri performTask() throws Throwable {
-                File processedBitmap = processBitmapForSharing(context, bmp, imageFileName);
-                return getUriFromFile(context, processedBitmap);
-            }
-
-            @Override
-            public void onFinish(Uri result) {
-                if (result == null) {
-                    displayShareErrorMessage(context);
-                    return;
-                }
-                Intent chooserIntent = buildImageShareChooserIntent(context, subject, text, result);
-                context.startActivity(chooserIntent);
-            }
-
-            @Override
-            public void onCatch(Throwable caught) {
-                displayOnCatchMessage(caught, context);
-            }
-        }.execute();
+        Observable.fromCallable(() -> getUriFromFile(context, processBitmapForSharing(context, bmp, imageFileName)))
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(uri -> {
+                    if (uri == null) {
+                        displayShareErrorMessage(context);
+                        return;
+                    }
+                    Intent chooserIntent = buildImageShareChooserIntent(context, subject, text, uri);
+                    context.startActivity(chooserIntent);
+                }, caught -> displayOnCatchMessage(caught, context));
     }
 
     public static String getFeaturedImageShareSubject(@NonNull Context context, int age) {
@@ -96,11 +91,11 @@ public final class ShareUtil {
     public static Intent buildImageShareChooserIntent(Context context, String subject, String text, Uri uri) {
         Intent shareIntent = createImageShareIntent(subject, text, uri);
         return Intent.createChooser(shareIntent,
-                context.getResources().getString(R.string.share_via));
+                context.getResources().getString(R.string.image_share_via));
     }
 
 
-    public static Uri getUriFromFile(@NonNull Context context, @NonNull File file) {
+    private static Uri getUriFromFile(@NonNull Context context, @NonNull File file) {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
                 ? FileProvider.getUriForFile(context, FILE_PROVIDER_AUTHORITY, file)
                 : Uri.parse(FILE_PREFIX + file.getAbsolutePath());
@@ -176,15 +171,7 @@ public final class ShareUtil {
     public static Intent createChooserIntent(@NonNull Intent targetIntent,
                                              @Nullable CharSequence chooserTitle,
                                              @NonNull Context context) {
-        return createChooserIntent(targetIntent, chooserTitle, context, APP_PACKAGE_REGEX);
-    }
-
-    @Nullable
-    public static Intent createChooserIntent(@NonNull Intent targetIntent,
-                                             @Nullable CharSequence chooserTitle,
-                                             @NonNull Context context,
-                                             String packageNameBlacklistRegex) {
-        List<Intent> intents = queryIntents(context, targetIntent, packageNameBlacklistRegex);
+        List<Intent> intents = queryIntents(context, targetIntent, APP_PACKAGE_REGEX);
 
         if (intents.isEmpty()) {
             return null;
@@ -195,7 +182,7 @@ public final class ShareUtil {
         return bestIntent;
     }
 
-    public static List<Intent> queryIntents(@NonNull Context context,
+    private static List<Intent> queryIntents(@NonNull Context context,
                                             @NonNull Intent targetIntent,
                                             String packageNameBlacklistRegex) {
         List<Intent> intents = new ArrayList<>();
@@ -203,9 +190,9 @@ public final class ShareUtil {
         if (targetIntent.getAction().equals(Intent.ACTION_VIEW)) {
             // To avoid using the Wikipedia app externally opens the wikipedia.org links,
             // we can put a non-wikipedia link for intent choose to fetch browser apps list, and use the list for our "true" external links
-            queryIntent.setData(Uri.parse("https://not.a.website/"));
+            queryIntent.setData(Uri.parse("https://example.com/"));
         }
-        for (ResolveInfo intentActivity : queryIntentActivities(queryIntent, context)) {
+        for (ResolveInfo intentActivity : context.getPackageManager().queryIntentActivities(queryIntent, 0)) {
             if (!isIntentActivityBlacklisted(intentActivity, packageNameBlacklistRegex)) {
                 intents.add(buildLabeledIntent(targetIntent, intentActivity));
             }
@@ -213,14 +200,10 @@ public final class ShareUtil {
         return intents;
     }
 
-    public static List<ResolveInfo> queryIntentActivities(Intent intent, @NonNull Context context) {
-        return context.getPackageManager().queryIntentActivities(intent, 0);
-    }
-
     public static boolean canOpenUrlInApp(@NonNull Context context, @NonNull String url) {
         boolean canOpen = false;
         Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
-        for (ResolveInfo intentActivity : queryIntentActivities(intent, context)) {
+        for (ResolveInfo intentActivity : context.getPackageManager().queryIntentActivities(intent, 0)) {
             if (getPackageName(intentActivity).matches(APP_PACKAGE_REGEX)) {
                 canOpen = true;
                 break;

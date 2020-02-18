@@ -2,14 +2,16 @@ package org.wikipedia.language;
 
 import android.content.Context;
 import android.os.Build;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v4.os.LocaleListCompat;
 import android.text.TextUtils;
 import android.view.inputmethod.InputMethodInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.view.inputmethod.InputMethodSubtype;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.core.os.LocaleListCompat;
+
+import org.apache.commons.lang3.StringUtils;
 import org.wikipedia.WikipediaApp;
 import org.wikipedia.util.StringUtil;
 
@@ -36,7 +38,10 @@ public final class LanguageUtil {
         // First, look at languages installed on the system itself.
         LocaleListCompat localeList = LocaleListCompat.getDefault();
         for (int i = 0; i < localeList.size(); i++) {
-            languages.add(localeToWikiLanguageCode(localeList.get(i)));
+            String languageCode = localeToWikiLanguageCode(localeList.get(i));
+            if (!languages.contains(languageCode)) {
+                languages.add(languageCode);
+            }
         }
         if (languages.isEmpty()) {
             // Always default to at least one system language in the list.
@@ -60,6 +65,9 @@ public final class LanguageUtil {
                     if (submethod.getMode().equals("keyboard")) {
                         String langTag = Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && !TextUtils.isEmpty(submethod.getLanguageTag())
                                 ? submethod.getLanguageTag() : submethod.getLocale();
+                        if (TextUtils.isEmpty(langTag)) {
+                            continue;
+                        }
                         if (langTag.contains("_")) {
                             // The keyboard reports locale variants with underscores ("en_US") whereas
                             // Locale.forLanguageTag() expects dashes ("en-US"), so convert them.
@@ -67,6 +75,12 @@ public final class LanguageUtil {
                         }
                         if (!langTagList.contains(langTag)) {
                             langTagList.add(langTag);
+                        }
+                        // A Pinyin keyboard will report itself as zh-CN (simplified), but we want to add
+                        // both Simplified and Traditional in that case.
+                        if (langTag.toLowerCase().equals(AppLanguageLookUpTable.CHINESE_CN_LANGUAGE_CODE)
+                                && !langTagList.contains("zh-TW")) {
+                            langTagList.add("zh-TW");
                         }
                     }
                 }
@@ -110,13 +124,11 @@ public final class LanguageUtil {
     }
 
     @NonNull private static String chineseLanguageCodeToWikiLanguageCode(@NonNull Locale locale) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            String script = locale.getScript();
-            switch (script) {
-                case "Hans": return AppLanguageLookUpTable.SIMPLIFIED_CHINESE_LANGUAGE_CODE;
-                case "Hant": return AppLanguageLookUpTable.TRADITIONAL_CHINESE_LANGUAGE_CODE;
-                default: break;
-            }
+        String script = locale.getScript();
+        switch (script) {
+            case "Hans": return AppLanguageLookUpTable.SIMPLIFIED_CHINESE_LANGUAGE_CODE;
+            case "Hant": return AppLanguageLookUpTable.TRADITIONAL_CHINESE_LANGUAGE_CODE;
+            default: break;
         }
 
         // Guess based on country. If the guess is incorrect, the user must explicitly choose the
@@ -128,6 +140,18 @@ public final class LanguageUtil {
 
     private static boolean isTraditionalChinesePredominantInCountry(@Nullable String country) {
         return TRADITIONAL_CHINESE_COUNTRY_CODES.contains(country);
+    }
+
+    @NonNull
+    public static String getFirstSelectedChineseVariant() {
+        String firstSelectedChineseLangCode = null;
+        for (String langCode : WikipediaApp.getInstance().language().getAppLanguageCodes()) {
+            if (langCode.startsWith(AppLanguageLookUpTable.CHINESE_LANGUAGE_CODE)) {
+                firstSelectedChineseLangCode = langCode;
+                break;
+            }
+        }
+        return StringUtils.defaultString(firstSelectedChineseLangCode, AppLanguageLookUpTable.TRADITIONAL_CHINESE_LANGUAGE_CODE);
     }
 
     private LanguageUtil() { }

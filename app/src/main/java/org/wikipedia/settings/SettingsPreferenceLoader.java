@@ -2,23 +2,24 @@ package org.wikipedia.settings;
 
 import android.content.DialogInterface;
 import android.content.Intent;
-import android.support.annotation.NonNull;
-import android.support.v7.app.AlertDialog;
-import android.support.v7.preference.Preference;
-import android.support.v7.preference.PreferenceFragmentCompat;
-import android.support.v7.preference.SwitchPreferenceCompat;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
+import androidx.preference.Preference;
+import androidx.preference.PreferenceFragmentCompat;
+import androidx.preference.SwitchPreferenceCompat;
 
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
-import org.wikipedia.activity.BaseActivity;
 import org.wikipedia.analytics.LoginFunnel;
 import org.wikipedia.auth.AccountUtil;
+import org.wikipedia.language.LanguageSettingsInvokeSource;
 import org.wikipedia.login.LoginActivity;
 import org.wikipedia.readinglist.sync.ReadingListSyncAdapter;
 import org.wikipedia.settings.languages.WikipediaLanguagesActivity;
 import org.wikipedia.theme.ThemeFittingRoomActivity;
-import org.wikipedia.util.ReleaseUtil;
-import org.wikipedia.util.StringUtil;
+
+import static org.wikipedia.Constants.ACTIVITY_REQUEST_ADD_A_LANGUAGE;
 
 /** UI code for app settings used by PreferenceFragment. */
 class SettingsPreferenceLoader extends BasePreferenceLoader {
@@ -36,10 +37,6 @@ class SettingsPreferenceLoader extends BasePreferenceLoader {
             findPreference(R.string.preference_key_sync_reading_lists).setVisible(false);
         }
 
-        if (!Prefs.isZeroTutorialEnabled()) {
-            loadPreferences(R.xml.preferences_zero);
-        }
-
         findPreference(R.string.preference_key_sync_reading_lists)
                 .setOnPreferenceChangeListener(new SyncReadingListsListener());
 
@@ -51,20 +48,14 @@ class SettingsPreferenceLoader extends BasePreferenceLoader {
             return true;
         });
 
-        if (ReleaseUtil.isPreBetaRelease()) {
-            loadPreferences(R.xml.preferences_experimental);
-            Preference offlineLibPref = findPreference(R.string.preference_key_enable_offline_library);
-            offlineLibPref.setOnPreferenceChangeListener(new OfflineLibraryEnableListener());
-            offlineLibPref.setSummary(StringUtil.fromHtml(getPreferenceHost().getString(R.string.preference_summary_enable_offline_library)));
-        }
-
         loadPreferences(R.xml.preferences_about);
 
         updateLanguagePrefSummary();
 
         Preference contentLanguagePref = findPreference(R.string.preference_key_language);
         contentLanguagePref.setOnPreferenceClickListener(preference -> {
-            getActivity().startActivity(new Intent(getActivity(), WikipediaLanguagesActivity.class));
+            getActivity().startActivityForResult(WikipediaLanguagesActivity.newIntent(getActivity(), LanguageSettingsInvokeSource.SETTINGS.text()),
+                    ACTIVITY_REQUEST_ADD_A_LANGUAGE);
             return true;
         });
 
@@ -127,15 +118,6 @@ class SettingsPreferenceLoader extends BasePreferenceLoader {
             syncReadingListsPref.setSummary(getActivity().getString(R.string.preference_summary_sync_reading_lists_from_account, AccountUtil.getUserName()));
         } else {
             syncReadingListsPref.setSummary(R.string.preference_summary_sync_reading_lists);
-        }
-    }
-
-    private final class OfflineLibraryEnableListener implements Preference.OnPreferenceChangeListener {
-        @Override public boolean onPreferenceChange(Preference preference, Object newValue) {
-            if (((Boolean) newValue)) {
-                ((BaseActivity) getActivity()).searchOfflineCompilationsWithPermission(true);
-            }
-            return true;
         }
     }
 

@@ -5,17 +5,18 @@ import android.animation.ObjectAnimator;
 import android.content.Context;
 import android.graphics.PointF;
 import android.net.Uri;
-import android.support.annotation.ColorInt;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.constraint.ConstraintLayout;
-import android.support.v4.content.ContextCompat;
-import android.support.v4.view.ViewCompat;
 import android.util.AttributeSet;
 import android.view.View;
 import android.widget.TextView;
 
+import androidx.annotation.ColorInt;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.constraintlayout.widget.ConstraintLayout;
+import androidx.core.content.ContextCompat;
+
 import org.wikipedia.R;
+import org.wikipedia.util.StringUtil;
 import org.wikipedia.views.FaceAndColorDetectImageView;
 
 import butterknife.BindView;
@@ -57,13 +58,13 @@ public class CardLargeHeaderView extends ConstraintLayout {
         return this;
     }
 
-    @NonNull public CardLargeHeaderView setTitle(@Nullable CharSequence title) {
-        titleView.setText(title);
+    @NonNull public CardLargeHeaderView setTitle(@Nullable String title) {
+        titleView.setText(StringUtil.fromHtml(title));
         return this;
     }
 
     @NonNull public CardLargeHeaderView setSubtitle(@Nullable CharSequence subtitle) {
-        subtitleView.setText(String.format(getResources().getString(R.string.view_continue_reading_card_subtitle_read_date), subtitle));
+        subtitleView.setText(getResources().getString(R.string.view_continue_reading_card_subtitle_read_date, subtitle));
         return this;
     }
 
@@ -80,12 +81,16 @@ public class CardLargeHeaderView extends ConstraintLayout {
         @Override
         public void onImageLoaded(final int bmpHeight, @Nullable final PointF faceLocation, @ColorInt final int mainColor) {
             post(() -> {
-                if (!ViewCompat.isAttachedToWindow(CardLargeHeaderView.this)) {
+                if (!isAttachedToWindow()) {
                     return;
                 }
                 animateBackgroundColor(CardLargeHeaderView.this, mainColor);
                 if (faceLocation != null) {
-                    imageView.getHierarchy().setActualImageFocusPoint(faceLocation);
+                    post(() -> {
+                        if (isAttachedToWindow()) {
+                            imageView.getHierarchy().setActualImageFocusPoint(faceLocation);
+                        }
+                    });
                 }
             });
         }

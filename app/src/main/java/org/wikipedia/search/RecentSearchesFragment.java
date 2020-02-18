@@ -4,19 +4,20 @@ import android.content.Context;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.v4.app.Fragment;
-import android.support.v4.app.LoaderManager;
-import android.support.v4.content.CursorLoader;
-import android.support.v4.content.Loader;
-import android.support.v4.widget.CursorAdapter;
-import android.support.v7.app.AlertDialog;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
+import androidx.cursoradapter.widget.CursorAdapter;
+import androidx.fragment.app.Fragment;
+import androidx.loader.app.LoaderManager;
+import androidx.loader.content.CursorLoader;
+import androidx.loader.content.Loader;
 
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
@@ -25,16 +26,21 @@ import org.wikipedia.util.FeedbackUtil;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
+import butterknife.OnClick;
+import io.reactivex.Completable;
+import io.reactivex.schedulers.Schedulers;
 
 import static org.wikipedia.Constants.RECENT_SEARCHES_FRAGMENT_LOADER_ID;
 
 /** Displays a list of recent searches */
 public class RecentSearchesFragment extends Fragment implements LoaderManager.LoaderCallbacks<Cursor> {
-    public interface Parent {
+    public interface Callback {
         void switchToSearch(@NonNull String text);
+
+        void onAddLanguageClicked();
     }
 
-    private Parent parentFragment;
+    private Callback callback;
     private RecentSearchesAdapter adapter;
 
     @BindView(R.id.recent_searches_list) ListView recentSearchesList;
@@ -42,21 +48,21 @@ public class RecentSearchesFragment extends Fragment implements LoaderManager.Lo
     @BindView(R.id.recent_searches_container) View recentSearchesContainer;
     @BindView(R.id.recent_searches) View recentSearches;
     @BindView(R.id.recent_searches_delete_button) ImageView deleteButton;
+    @BindView(R.id.add_languages_button) TextView addLanguagesButton;
+    @BindView(R.id.search_empty_message) TextView emptyViewMessage;
 
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View rootView = inflater.inflate(R.layout.fragment_search_recent, container, false);
         ButterKnife.bind(this, rootView);
 
-        parentFragment = (Parent) getParentFragment();
-        deleteButton.setOnClickListener((view) -> {
-            new AlertDialog.Builder(getContext())
-                    .setMessage(getString(R.string.clear_recent_searches_confirm))
-                    .setPositiveButton(
-                            getString(R.string.clear_recent_searches_confirm_yes), (dialog, id) -> new DeleteAllRecentSearchesTask(WikipediaApp.getInstance()).execute())
-                    .setNegativeButton(getString(R.string.clear_recent_searches_confirm_no), null)
-                    .create().show();
-        });
+        deleteButton.setOnClickListener((view) ->
+                new AlertDialog.Builder(requireContext())
+                        .setMessage(getString(R.string.clear_recent_searches_confirm))
+                        .setPositiveButton(getString(R.string.clear_recent_searches_confirm_yes), (dialog, id) ->
+                                Completable.fromAction(() -> WikipediaApp.getInstance().getDatabaseClient(RecentSearch.class).deleteAll()).subscribeOn(Schedulers.io()).subscribe())
+                        .setNegativeButton(getString(R.string.clear_recent_searches_confirm_no), null)
+                        .create().show());
         FeedbackUtil.setToolbarButtonLongPressToast(deleteButton);
 
         return rootView;
@@ -78,47 +84,74 @@ public class RecentSearchesFragment extends Fragment implements LoaderManager.Lo
 
         recentSearchesList.setOnItemClickListener((parent, view, position, id) -> {
             RecentSearch entry = (RecentSearch) view.getTag();
-            parentFragment.switchToSearch(entry.getText());
+            if (callback != null) {
+                callback.switchToSearch(entry.getText());
+            }
         });
 
-        LoaderManager supportLoaderManager = getLoaderManager();
+        LoaderManager supportLoaderManager = LoaderManager.getInstance(this);
         supportLoaderManager.initLoader(RECENT_SEARCHES_FRAGMENT_LOADER_ID, null, this);
         supportLoaderManager.restartLoader(RECENT_SEARCHES_FRAGMENT_LOADER_ID, null, this);
     }
 
     @Override
     public void onDestroyView() {
-        getLoaderManager().destroyLoader(RECENT_SEARCHES_FRAGMENT_LOADER_ID);
+        LoaderManager.getInstance(this).destroyLoader(RECENT_SEARCHES_FRAGMENT_LOADER_ID);
         super.onDestroyView();
     }
 
+    @NonNull
     @Override
     public Loader<Cursor> onCreateLoader(int i, Bundle bundle) {
         Uri uri = SearchHistoryContract.Query.URI;
-        final String[] projection = null;
-        final String selection = null;
-        final String[] selectionArgs = null;
         String order = SearchHistoryContract.Query.ORDER_MRU;
-        return new CursorLoader(getContext(), uri, projection, selection, selectionArgs, order);
+        return new CursorLoader(requireContext(), uri, null, null, null, order);
     }
 
     @Override
-    public void onLoadFinished(Loader<Cursor> cursorLoaderLoader, Cursor cursorLoader) {
+    public void onLoadFinished(@NonNull Loader<Cursor> cursorLoaderLoader, Cursor cursorLoader) {
         if (!isAdded()) {
             return;
         }
         adapter.swapCursor(cursorLoader);
         boolean searchesEmpty = recentSearchesList.getCount() == 0;
         searchEmptyView.setVisibility(searchesEmpty ? View.VISIBLE : View.INVISIBLE);
+        updateSearchEmptyView(searchesEmpty);
         recentSearches.setVisibility(!searchesEmpty ? View.VISIBLE : View.INVISIBLE);
     }
 
+    public void setCallback(Callback callback) {
+        this.callback = callback;
+    }
+
+    @SuppressWarnings("checkstyle:magicnumber")
+    private void updateSearchEmptyView(boolean searchesEmpty) {
+        if (searchesEmpty) {
+            searchEmptyView.setVisibility(View.VISIBLE);
+            if (WikipediaApp.getInstance().language().getAppLanguageCodes().size() == 1) {
+                addLanguagesButton.setVisibility(View.VISIBLE);
+                emptyViewMessage.setText(getString(R.string.search_empty_message_multilingual_upgrade));
+            } else {
+                addLanguagesButton.setVisibility(View.GONE);
+                emptyViewMessage.setText(getString(R.string.search_empty_message));
+            }
+        } else {
+            searchEmptyView.setVisibility(View.INVISIBLE);
+        }
+    }
+
+    @OnClick(R.id.add_languages_button) void onAddLangButtonClick() {
+        if (callback != null) {
+            callback.onAddLanguageClicked();
+        }
+    }
+
     @Override
-    public void onLoaderReset(Loader<Cursor> cursorLoaderLoader) {
+    public void onLoaderReset(@NonNull Loader<Cursor> cursorLoaderLoader) {
         adapter.changeCursor(null);
     }
 
-    public void updateList() {
+    void updateList() {
         adapter.notifyDataSetChanged();
     }
 
@@ -134,7 +167,7 @@ public class RecentSearchesFragment extends Fragment implements LoaderManager.Lo
 
         @Override
         public void bindView(View view, Context context, Cursor cursor) {
-            TextView textView = view.findViewById(R.id.text1);
+            TextView textView = (TextView) view;
             RecentSearch entry = getEntry(cursor);
             textView.setText(entry.getText());
             view.setTag(entry);
@@ -145,7 +178,7 @@ public class RecentSearchesFragment extends Fragment implements LoaderManager.Lo
             return getEntry(cursor).getText();
         }
 
-        public RecentSearch getEntry(Cursor cursor) {
+        RecentSearch getEntry(Cursor cursor) {
             return RecentSearch.DATABASE_TABLE.fromCursor(cursor);
         }
     }

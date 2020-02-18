@@ -2,8 +2,6 @@ package org.wikipedia.page.shareafact;
 
 import android.content.Context;
 import android.graphics.Bitmap;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.view.ActionMode;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -11,25 +9,25 @@ import android.view.MenuItem;
 import android.view.View;
 import android.widget.ImageView;
 
-import org.apache.commons.lang3.StringUtils;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
-import org.wikipedia.activity.ActivityUtil;
 import org.wikipedia.analytics.ShareAFactFunnel;
 import org.wikipedia.bridge.CommunicationBridge;
-import org.wikipedia.dataclient.mwapi.MwQueryResponse;
+import org.wikipedia.bridge.JavaScriptActionHandler;
+import org.wikipedia.dataclient.ServiceFactory;
+import org.wikipedia.dataclient.mwapi.MwQueryPage;
 import org.wikipedia.gallery.ImageLicense;
-import org.wikipedia.gallery.ImageLicenseFetchClient;
-import org.wikipedia.onboarding.PrefsOnboardingStateMachine;
 import org.wikipedia.page.Namespace;
 import org.wikipedia.page.NoDimBottomSheetDialog;
 import org.wikipedia.page.Page;
 import org.wikipedia.page.PageFragment;
 import org.wikipedia.page.PageProperties;
 import org.wikipedia.page.PageTitle;
-import org.wikipedia.settings.Prefs;
 import org.wikipedia.util.FeedbackUtil;
 import org.wikipedia.util.ShareUtil;
 import org.wikipedia.util.StringUtil;
@@ -40,7 +38,9 @@ import org.wikipedia.wiktionary.WiktionaryDialog;
 import java.util.Arrays;
 import java.util.Locale;
 
-import retrofit2.Call;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.CompositeDisposable;
+import io.reactivex.schedulers.Schedulers;
 
 import static org.wikipedia.analytics.ShareAFactFunnel.ShareMode;
 
@@ -48,7 +48,6 @@ import static org.wikipedia.analytics.ShareAFactFunnel.ShareMode;
  * Let user choose between sharing as text or as image.
  */
 public class ShareHandler {
-    private static final String PAYLOAD_PURPOSE_KEY = "purpose";
     private static final String PAYLOAD_PURPOSE_SHARE = "share";
     private static final String PAYLOAD_PURPOSE_DEFINE = "define";
     private static final String PAYLOAD_PURPOSE_EDIT_HERE = "edit_here";
@@ -58,6 +57,7 @@ public class ShareHandler {
     @NonNull private final CommunicationBridge bridge;
     @Nullable private ActionMode webViewActionMode;
     @Nullable private ShareAFactFunnel funnel;
+    private CompositeDisposable disposables = new CompositeDisposable();
 
     private void createFunnel() {
         WikipediaApp app = WikipediaApp.getInstance();
@@ -70,31 +70,10 @@ public class ShareHandler {
     public ShareHandler(@NonNull PageFragment fragment, @NonNull CommunicationBridge bridge) {
         this.fragment = fragment;
         this.bridge = bridge;
-
-        bridge.addListener("onGetTextSelection", (String messageType, JSONObject messagePayload) -> {
-            String purpose = messagePayload.optString(PAYLOAD_PURPOSE_KEY, "");
-            String text = messagePayload.optString(PAYLOAD_TEXT_KEY, "");
-            switch (purpose) {
-                case PAYLOAD_PURPOSE_SHARE:
-                    onSharePayload(text);
-                    break;
-                case PAYLOAD_PURPOSE_DEFINE:
-                    onDefinePayload(text);
-                    break;
-                case PAYLOAD_PURPOSE_EDIT_HERE:
-                    onEditHerePayload(messagePayload.optInt("sectionID", 0), text);
-                    break;
-                default:
-                    L.d("Unknown purpose=" + purpose);
-            }
-        });
     }
 
-    private void onHighlightText() {
-        if (funnel == null) {
-            createFunnel();
-        }
-        funnel.logHighlight();
+    public void dispose() {
+        disposables.clear();
     }
 
     public void showWiktionaryDefinition(String text) {
@@ -102,26 +81,14 @@ public class ShareHandler {
         fragment.showBottomSheet(WiktionaryDialog.newInstance(title, text));
     }
 
-    private void onSharePayload(@NonNull String text) {
-        if (funnel == null) {
-            createFunnel();
+    private void onEditHerePayload(int sectionID, String text, boolean isEditingDescription) {
+        if (sectionID == 0 && isEditingDescription) {
+            fragment.verifyBeforeEditingDescription(text);
+        } else {
+            if (sectionID >= 0) {
+                fragment.getEditHandler().startEditingSection(sectionID, text);
+            }
         }
-        shareSnippet(text);
-        funnel.logShareTap(text);
-    }
-
-    private void onDefinePayload(String text) {
-        showWiktionaryDefinition(text.toLowerCase(Locale.getDefault()));
-    }
-
-    private void onEditHerePayload(int sectionID, String text) {
-        if (sectionID >= 0) {
-            fragment.getEditHandler().startEditingSection(sectionID, text);
-        }
-    }
-
-    private void showCopySnackbar() {
-        FeedbackUtil.showMessage(fragment.getActivity(), R.string.text_copied);
     }
 
     private void shareSnippet(@NonNull CharSequence input) {
@@ -129,29 +96,32 @@ public class ShareHandler {
         final PageTitle title = fragment.getTitle();
         final String leadImageNameText = fragment.getPage().getPageProperties().getLeadImageName() != null
                 ? fragment.getPage().getPageProperties().getLeadImageName() : "";
+        final PageTitle imageTitle = new PageTitle(Namespace.FILE.toLegacyString(), leadImageNameText, title.getWikiSite());
 
-        new ImageLicenseFetchClient().request(title.getWikiSite(),
-                new PageTitle(Namespace.FILE.toLegacyString(), leadImageNameText, title.getWikiSite()),
-                new ImageLicenseFetchClient.Callback() {
-                    @Override public void success(@NonNull Call<MwQueryResponse> call,
-                                                  @NonNull ImageLicense result) {
-                        final Bitmap snippetBitmap = SnippetImage.getSnippetImage(fragment.getContext(),
-                                fragment.getLeadImageBitmap(),
-                                title.getDisplayText(),
-                                fragment.getPage().isMainPage() ? "" : StringUtils.capitalize(title.getDescription()),
-                                selectedText,
-                                result);
-                        fragment.showBottomSheet(new PreviewDialog(fragment.getContext(),
-                                snippetBitmap, title, selectedText, funnel));
-                    }
-
-                    @Override public void failure(@NonNull Call<MwQueryResponse> call,
-                                                  @NonNull Throwable caught) {
-                        // If we failed to get license info for the lead image, just share the text
-                        PreviewDialog.shareAsText(fragment.getContext(), title, selectedText, funnel);
-                        L.e("Error fetching image license info for " + title.getDisplayText(), caught);
-                    }
-                });
+        disposables.add(ServiceFactory.get(title.getWikiSite()).getImageExtMetadata(imageTitle.getPrefixedText())
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .map(response -> {
+                    // noinspection ConstantConditions
+                    MwQueryPage page = response.query().pages().get(0);
+                    return page.imageInfo() != null && page.imageInfo().getMetadata() != null
+                            ? new ImageLicense(page.imageInfo().getMetadata())
+                            : new ImageLicense();
+                })
+                .subscribe(imageLicense -> {
+                    final Bitmap snippetBitmap = SnippetImage.getSnippetImage(fragment.requireContext(),
+                            fragment.getLeadImageBitmap(),
+                            title.getDisplayText(),
+                            fragment.getPage().isMainPage() ? "" : title.getDescription(),
+                            selectedText,
+                            imageLicense);
+                    fragment.showBottomSheet(new PreviewDialog(fragment.getContext(),
+                            snippetBitmap, title, selectedText, funnel));
+                }, caught -> {
+                    // If we failed to get license info for the lead image, just share the text
+                    PreviewDialog.shareAsText(fragment.requireContext(), title, selectedText, funnel);
+                    L.e("Error fetching image license info for " + title.getDisplayText(), caught);
+                }));
     }
 
     /**
@@ -161,21 +131,13 @@ public class ShareHandler {
         webViewActionMode = mode;
         Menu menu = mode.getMenu();
         MenuItem shareItem = menu.findItem(R.id.menu_text_select_share);
-        handleSelection(menu, shareItem);
-    }
-
-    private void handleSelection(Menu menu, MenuItem shareItem) {
-        if (PrefsOnboardingStateMachine.getInstance().isShareTutorialEnabled()) {
-            postShowShareToolTip(shareItem);
-            PrefsOnboardingStateMachine.getInstance().setShareTutorial();
-        }
 
         // Provide our own listeners for the copy, define, and share buttons.
         shareItem.setOnMenuItemClickListener(new RequestTextSelectOnMenuItemClickListener(PAYLOAD_PURPOSE_SHARE));
         MenuItem copyItem = menu.findItem(R.id.menu_text_select_copy);
         copyItem.setOnMenuItemClickListener((MenuItem menuItem) -> {
             fragment.getWebView().copyToClipboard();
-            showCopySnackbar();
+            FeedbackUtil.showMessage(fragment.getActivity(), R.string.text_copied);
             leaveActionMode();
             return true;
         });
@@ -190,30 +152,19 @@ public class ShareHandler {
             editItem.setVisible(false);
         }
 
-        onHighlightText();
+        if (funnel == null) {
+            createFunnel();
+        }
+        funnel.logHighlight();
     }
 
     private boolean shouldEnableWiktionaryDialog() {
-        return Prefs.useRestBase() && isWiktionaryDialogEnabledForArticleLanguage();
+        return isWiktionaryDialogEnabledForArticleLanguage();
     }
 
     private boolean isWiktionaryDialogEnabledForArticleLanguage() {
         return Arrays.asList(WiktionaryDialog.getEnabledLanguages())
                 .contains(fragment.getTitle().getWikiSite().languageCode());
-    }
-
-    private void postShowShareToolTip(final MenuItem shareItem) {
-        fragment.getView().post(() -> {
-            View shareItemView = ActivityUtil.getMenuItemView(fragment.getActivity(), shareItem);
-            if (shareItemView != null) {
-                showShareToolTip(shareItemView);
-            }
-        });
-    }
-
-    private void showShareToolTip(@NonNull View shareItemView) {
-        FeedbackUtil.showTapTargetView(fragment.getActivity(), shareItemView,
-                R.string.menu_text_select_share, R.string.tool_tip_share, null);
     }
 
     private void leaveActionMode() {
@@ -244,21 +195,39 @@ public class ShareHandler {
 
         @Override
         public boolean onMenuItemClick(MenuItem item) {
-            requestTextSelection(purpose);
-            leaveActionMode();
-            return true;
-        }
-    }
+            // send an event to the WebView that will make it return the
+            // selected text (or first paragraph) back to us...
+            bridge.evaluate(JavaScriptActionHandler.getTextSelection(), value -> {
+                leaveActionMode();
+                JSONObject messagePayload;
 
-    private void requestTextSelection(String purpose) {
-        // send an event to the WebView that will make it return the
-        // selected text (or first paragraph) back to us...
-        try {
-            JSONObject payload = new JSONObject();
-            payload.put(PAYLOAD_PURPOSE_KEY, purpose);
-            bridge.sendMessage("getTextSelection", payload);
-        } catch (JSONException e) {
-            throw new RuntimeException(e);
+                try {
+                    messagePayload = new JSONObject(value);
+                    String text = messagePayload.optString(PAYLOAD_TEXT_KEY, "");
+                    switch (purpose) {
+                        case PAYLOAD_PURPOSE_SHARE:
+                            if (funnel == null) {
+                                createFunnel();
+                            }
+                            shareSnippet(text);
+                            funnel.logShareTap(text);
+                            break;
+                        case PAYLOAD_PURPOSE_DEFINE:
+                            showWiktionaryDefinition(text.toLowerCase(Locale.getDefault()));
+                            break;
+                        case PAYLOAD_PURPOSE_EDIT_HERE:
+                            onEditHerePayload(messagePayload.optInt("section", 0), text, messagePayload.optBoolean("isTitleDescription", false));
+                            break;
+                        default:
+                            L.d("Unknown purpose=" + purpose);
+                    }
+                } catch (JSONException e) {
+                    e.printStackTrace();
+                }
+
+            });
+
+            return true;
         }
     }
 

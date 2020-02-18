@@ -1,11 +1,11 @@
 package org.wikipedia.feed.becauseyouread;
 
 import android.net.Uri;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.text.TextUtils;
 
-import org.apache.commons.lang3.StringUtils;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import org.wikipedia.feed.model.Card;
 import org.wikipedia.feed.model.CardType;
 import org.wikipedia.page.PageTitle;
@@ -29,7 +29,7 @@ public class BecauseYouReadItemCard extends Card {
 
     @Nullable
     @Override public String subtitle() {
-        return StringUtils.capitalize(title.getDescription());
+        return title.getDescription();
     }
 
     @Nullable

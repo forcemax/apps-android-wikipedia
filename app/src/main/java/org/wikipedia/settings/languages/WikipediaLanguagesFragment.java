@@ -2,17 +2,7 @@ package org.wikipedia.settings.languages;
 
 import android.content.Context;
 import android.content.Intent;
-import android.os.Build;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.v4.app.Fragment;
-import android.support.v4.content.ContextCompat;
-import android.support.v7.app.AlertDialog;
-import android.support.v7.app.AppCompatActivity;
-import android.support.v7.view.ActionMode;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
-import android.support.v7.widget.helper.ItemTouchHelper;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -22,11 +12,21 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
-import org.wikipedia.Constants;
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.appcompat.view.ActionMode;
+import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.ItemTouchHelper;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
+import org.wikipedia.analytics.AppLanguageSettingsFunnel;
+import org.wikipedia.language.LanguageSettingsInvokeSource;
 import org.wikipedia.language.LanguagesListActivity;
-import org.wikipedia.util.ResourceUtil;
+import org.wikipedia.util.StringUtil;
 import org.wikipedia.views.DefaultViewHolder;
 import org.wikipedia.views.MultiSelectActionModeCallback;
 
@@ -40,8 +40,14 @@ import butterknife.Unbinder;
 
 import static android.app.Activity.RESULT_OK;
 import static org.wikipedia.Constants.ACTIVITY_REQUEST_ADD_A_LANGUAGE;
+import static org.wikipedia.language.LanguagesListActivity.LANGUAGE_SEARCHED;
+import static org.wikipedia.settings.languages.WikipediaLanguagesActivity.INVOKE_SOURCE_EXTRA;
 
 public class WikipediaLanguagesFragment extends Fragment implements WikipediaLanguagesItemView.Callback {
+    public static final String ACTIVITY_RESULT_LANG_POSITION_DATA = "activity_result_lang_position_data";
+    public static final String ADD_LANGUAGE_INTERACTIONS = "add_language_interactions";
+    public static final String SESSION_TOKEN = "session_token";
+
     @BindView(R.id.wikipedia_languages_recycler) RecyclerView recyclerView;
     private WikipediaApp app;
     private Unbinder unbinder;
@@ -53,23 +59,31 @@ public class WikipediaLanguagesFragment extends Fragment implements WikipediaLan
     private List<String> selectedCodes = new ArrayList<>();
     private static final int NUM_HEADERS = 1;
     private static final int NUM_FOOTERS = 1;
-    public static final String ACTIVITY_RESULT_LANG_POSITION_DATA = "activity_result_lang_position_data";
+    private AppLanguageSettingsFunnel funnel;
+    private String invokeSource;
+    private String initialLanguageList;
+    private int interactionsCount;
+    private boolean isLanguageSearched = false;
 
-    @NonNull public static WikipediaLanguagesFragment newInstance() {
-        return new WikipediaLanguagesFragment();
+    @NonNull public static WikipediaLanguagesFragment newInstance(@NonNull String invokeSource) {
+        WikipediaLanguagesFragment instance = new WikipediaLanguagesFragment();
+        Bundle args = new Bundle();
+        args.putString(INVOKE_SOURCE_EXTRA, invokeSource);
+        instance.setArguments(args);
+        return instance;
     }
 
     @Override
     public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         View view = inflater.inflate(R.layout.fragment_wikipedia_languages, container, false);
         app = WikipediaApp.getInstance();
+        invokeSource = requireActivity().getIntent().getStringExtra(INVOKE_SOURCE_EXTRA);
+        initialLanguageList = StringUtil.listToJsonArrayString(app.language().getAppLanguageCodes());
+        funnel = new AppLanguageSettingsFunnel();
         unbinder = ButterKnife.bind(this, view);
 
         prepareWikipediaLanguagesList();
         setupRecyclerView();
-
-        // TODO: add funnel?
-
         return view;
     }
 
@@ -84,14 +98,17 @@ public class WikipediaLanguagesFragment extends Fragment implements WikipediaLan
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == ACTIVITY_REQUEST_ADD_A_LANGUAGE
                 && resultCode == RESULT_OK) {
-
+            interactionsCount += data.getIntExtra(ADD_LANGUAGE_INTERACTIONS, 0);
+            isLanguageSearched = (isLanguageSearched) || data.getBooleanExtra(LANGUAGE_SEARCHED, false);
             prepareWikipediaLanguagesList();
+            requireActivity().invalidateOptionsMenu();
             adapter.notifyDataSetChanged();
         }
     }
 
     @Override
     public void onDestroyView() {
+        funnel.logLanguageSetting(invokeSource, initialLanguageList, StringUtil.listToJsonArrayString(app.language().getAppLanguageCodes()), interactionsCount, isLanguageSearched);
         recyclerView.setAdapter(null);
         unbinder.unbind();
         unbinder = null;
@@ -101,6 +118,10 @@ public class WikipediaLanguagesFragment extends Fragment implements WikipediaLan
     @Override
     public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
         inflater.inflate(R.menu.menu_wikipedia_languages, menu);
+        if (app.language().getAppLanguageCodes().size() <= 1) {
+            MenuItem overflowMenu = menu.getItem(0);
+            overflowMenu.setVisible(false);
+        }
     }
 
     @Override
@@ -134,9 +155,19 @@ public class WikipediaLanguagesFragment extends Fragment implements WikipediaLan
         toggleSelectedLanguage(wikipediaLanguages.get(position));
     }
 
+    @Override
+    public void onLongPress(int position) {
+        if (actionMode == null) {
+            beginRemoveLanguageMode();
+        }
+        toggleSelectedLanguage(wikipediaLanguages.get(position));
+        adapter.notifyDataSetChanged();
+    }
+
     private void updateWikipediaLanguages() {
         app.language().setAppLanguageCodes(wikipediaLanguages);
         adapter.notifyDataSetChanged();
+        requireActivity().invalidateOptionsMenu();
     }
 
     @SuppressWarnings("checkstyle:magicnumber")
@@ -182,29 +213,33 @@ public class WikipediaLanguagesFragment extends Fragment implements WikipediaLan
         @Override
         public void onBindViewHolder(@NonNull DefaultViewHolder holder, int pos) {
             if (holder instanceof WikipediaLanguageItemHolder) {
-                if (launchedFromSearch()) {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                        ((WikipediaLanguageItemHolder) holder).getView().setForeground(ContextCompat.getDrawable(requireContext(),
-                                ResourceUtil.getThemedAttributeId(requireContext(), R.attr.selectableItemBackground)));
-                    }
-                    ((WikipediaLanguageItemHolder) holder).getView().setOnClickListener(view -> {
+                WikipediaLanguageItemHolder itemHolder = ((WikipediaLanguageItemHolder) holder);
+                itemHolder.bindItem(wikipediaLanguages.get(pos - NUM_HEADERS), pos - NUM_FOOTERS);
+                itemHolder.getView().setCheckBoxEnabled(checkboxEnabled);
+                itemHolder.getView().setCheckBoxChecked(selectedCodes.contains(wikipediaLanguages.get(pos - NUM_HEADERS)));
+                itemHolder.getView().setDragHandleEnabled(wikipediaLanguages.size() > 1 && !checkboxEnabled);
+                itemHolder.getView().setOnClickListener(view -> {
+                    if (actionMode != null) {
+                        toggleSelectedLanguage(wikipediaLanguages.get(pos - NUM_HEADERS));
+                        adapter.notifyDataSetChanged();
+                    } else if (launchedFromSearch()) {
                         Intent resultIntent = new Intent();
                         resultIntent.putExtra(ACTIVITY_RESULT_LANG_POSITION_DATA, pos - NUM_HEADERS);
                         requireActivity().setResult(RESULT_OK, resultIntent);
                         requireActivity().finish();
-                    });
-                }
-                ((WikipediaLanguageItemHolder) holder).bindItem(wikipediaLanguages.get(pos - NUM_HEADERS), pos - NUM_FOOTERS);
-                ((WikipediaLanguageItemHolder) holder).getView().setCheckBoxEnabled(checkboxEnabled);
+                    }
+                });
             }
         }
 
         @Override public void onViewAttachedToWindow(@NonNull DefaultViewHolder holder) {
             super.onViewAttachedToWindow(holder);
             if (holder instanceof WikipediaLanguageItemHolder) {
-                ((WikipediaLanguageItemHolder) holder).getView().setDragHandleTouchListener((v, event) -> {
+                WikipediaLanguageItemHolder itemHolder = ((WikipediaLanguageItemHolder) holder);
+                itemHolder.getView().setDragHandleTouchListener((v, event) -> {
                     switch (event.getActionMasked()) {
                         case MotionEvent.ACTION_DOWN:
+                            interactionsCount++;
                             itemTouchHelper.startDrag(holder);
                             break;
                         case MotionEvent.ACTION_UP:
@@ -215,18 +250,22 @@ public class WikipediaLanguagesFragment extends Fragment implements WikipediaLan
                     }
                     return false;
                 });
-                ((WikipediaLanguageItemHolder) holder).getView().setCallback(WikipediaLanguagesFragment.this);
+                itemHolder.getView().setCallback(WikipediaLanguagesFragment.this);
             } else if (holder instanceof FooterViewHolder) {
+                holder.getView().setVisibility(checkboxEnabled ? View.GONE : View.VISIBLE);
                 holder.getView().setOnClickListener(v -> {
-                    startActivityForResult(new Intent(requireActivity(), LanguagesListActivity.class), ACTIVITY_REQUEST_ADD_A_LANGUAGE);
+                    Intent intent = new Intent(requireActivity(), LanguagesListActivity.class);
+                    intent.putExtra(SESSION_TOKEN, funnel.getSessionToken());
+                    startActivityForResult(intent, ACTIVITY_REQUEST_ADD_A_LANGUAGE);
                     finishActionMode();
                 });
             }
         }
         @Override public void onViewDetachedFromWindow(@NonNull DefaultViewHolder holder) {
             if (holder instanceof WikipediaLanguageItemHolder) {
-                ((WikipediaLanguageItemHolder) holder).getView().setCallback(null);
-                ((WikipediaLanguageItemHolder) holder).getView().setDragHandleTouchListener(null);
+                WikipediaLanguageItemHolder itemHolder = ((WikipediaLanguageItemHolder) holder);
+                itemHolder.getView().setCallback(null);
+                itemHolder.getView().setDragHandleTouchListener(null);
             }
             super.onViewDetachedFromWindow(holder);
         }
@@ -280,7 +319,11 @@ public class WikipediaLanguagesFragment extends Fragment implements WikipediaLan
         @Override
         public void clearView(RecyclerView recyclerView, RecyclerView.ViewHolder viewHolder) {
             super.clearView(recyclerView, viewHolder);
-            updateWikipediaLanguages();
+            recyclerView.post(() -> {
+                if (isAdded()) {
+                    updateWikipediaLanguages();
+                }
+            });
         }
     }
 
@@ -299,7 +342,7 @@ public class WikipediaLanguagesFragment extends Fragment implements WikipediaLan
         }
 
         void bindItem(String languageCode, int position) {
-            getView().setContents(app.language().getAppLanguageLocalizedName(languageCode), position);
+            getView().setContents(languageCode, app.language().getAppLanguageLocalizedName(languageCode), position);
         }
     }
 
@@ -310,12 +353,14 @@ public class WikipediaLanguagesFragment extends Fragment implements WikipediaLan
     }
 
     private boolean launchedFromSearch() {
-        return requireActivity().getIntent().hasExtra(Constants.INTENT_EXTRA_LAUNCHED_FROM_SEARCH);
+        String source = requireActivity().getIntent().hasExtra(INVOKE_SOURCE_EXTRA) ? requireActivity().getIntent().getStringExtra(INVOKE_SOURCE_EXTRA) : "";
+        return source.equals(LanguageSettingsInvokeSource.SEARCH.text());
     }
 
     private void setMultiSelectEnabled(boolean enabled) {
         adapter.onCheckboxEnabled(enabled);
         adapter.notifyDataSetChanged();
+        requireActivity().invalidateOptionsMenu();
     }
 
     private void finishActionMode() {
@@ -344,6 +389,7 @@ public class WikipediaLanguagesFragment extends Fragment implements WikipediaLan
 
     private void deleteSelectedLanguages() {
         app.language().removeAppLanguageCodes(selectedCodes);
+        interactionsCount++;
         prepareWikipediaLanguagesList();
         unselectAllLanguages();
     }
@@ -374,25 +420,26 @@ public class WikipediaLanguagesFragment extends Fragment implements WikipediaLan
         }
     }
 
+    @SuppressWarnings("checkstyle:magicnumber")
     public void showRemoveLanguagesDialog() {
         if (selectedCodes.size() > 0) {
+            AlertDialog.Builder alertDialog = new AlertDialog.Builder(requireActivity());
             if (selectedCodes.size() < wikipediaLanguages.size()) {
-                new AlertDialog.Builder(requireActivity())
-                        .setTitle(R.string.wikipedia_languages_remove_dialog_title)
+                alertDialog
+                        .setTitle(getResources().getQuantityString(R.plurals.wikipedia_languages_remove_dialog_title, selectedCodes.size()))
                         .setMessage(R.string.wikipedia_languages_remove_dialog_content)
-                        .setPositiveButton(android.R.string.ok, (dialog, i) -> {
+                        .setPositiveButton(R.string.remove_language_dialog_ok_button_text, (dialog, i) -> {
                             deleteSelectedLanguages();
                             finishActionMode();
                         })
-                        .setNegativeButton(android.R.string.cancel, null)
-                        .show();
+                        .setNegativeButton(R.string.remove_language_dialog_cancel_button_text, null);
             } else {
-                new AlertDialog.Builder(requireActivity())
+                alertDialog
                         .setTitle(R.string.wikipedia_languages_remove_warning_dialog_title)
                         .setMessage(R.string.wikipedia_languages_remove_warning_dialog_content)
-                        .setPositiveButton(android.R.string.ok, null)
-                        .show();
+                        .setPositiveButton(R.string.remove_all_language_warning_dialog_ok_button_text, null);
             }
+            alertDialog.show();
         }
     }
 }

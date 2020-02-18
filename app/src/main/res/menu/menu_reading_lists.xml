@@ -4,19 +4,12 @@
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
         android:id="@+id/menu_search_lists"
-        android:icon="@drawable/ic_search_white_24dp"
-        android:title="@string/search_hint"
+        android:icon="@drawable/ic_search_main_themed_24dp"
+        android:title="@string/search_hint_search_my_lists_and_articles"
         app:showAsAction="ifRoom" />
     <item
-        android:id="@+id/menu_sort"
-        android:title="@string/reading_list_sort_ellipsis"
-        app:showAsAction="never" />
-    <item
-        android:id="@+id/create_list"
-        android:title="@string/reading_lists_menu_create_list"
-        app:showAsAction="never" />
-    <item
-        android:id="@+id/refresh"
-        android:title="@string/reading_lists_refresh_sync_option"
-        app:showAsAction="never" />
+        android:id="@+id/menu_overflow_button"
+        android:icon="@drawable/ic_more_vert_themed_24dp"
+        android:title="@string/menu_feed_overflow_label"
+        app:showAsAction="ifRoom" />
 </menu>

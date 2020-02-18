@@ -2,12 +2,12 @@ package org.wikipedia.espresso.main.overflow;
 
 
 import android.Manifest;
-import android.support.test.espresso.ViewInteraction;
-import android.support.test.espresso.contrib.RecyclerViewActions;
-import android.support.test.rule.ActivityTestRule;
-import android.support.test.rule.GrantPermissionRule;
-import android.support.test.runner.AndroidJUnit4;
-import android.test.suitebuilder.annotation.LargeTest;
+
+import androidx.test.espresso.ViewInteraction;
+import androidx.test.espresso.contrib.RecyclerViewActions;
+import androidx.test.rule.ActivityTestRule;
+import androidx.test.rule.GrantPermissionRule;
+import androidx.test.runner.AndroidJUnit4;
 
 import org.junit.Rule;
 import org.junit.Test;
@@ -16,13 +16,13 @@ import org.wikipedia.R;
 import org.wikipedia.espresso.util.ScreenshotTools;
 import org.wikipedia.settings.SettingsActivity;
 
-import static android.support.test.espresso.Espresso.onView;
-import static android.support.test.espresso.action.ViewActions.click;
-import static android.support.test.espresso.contrib.RecyclerViewActions.actionOnItemAtPosition;
-import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
-import static android.support.test.espresso.matcher.ViewMatchers.withClassName;
-import static android.support.test.espresso.matcher.ViewMatchers.withId;
-import static android.support.test.espresso.matcher.ViewMatchers.withText;
+import static androidx.test.espresso.Espresso.onView;
+import static androidx.test.espresso.action.ViewActions.click;
+import static androidx.test.espresso.contrib.RecyclerViewActions.actionOnItemAtPosition;
+import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
+import static androidx.test.espresso.matcher.ViewMatchers.withClassName;
+import static androidx.test.espresso.matcher.ViewMatchers.withId;
+import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.AllOf.allOf;
 import static org.wikipedia.espresso.util.CompareTools.assertScreenshotWithinTolerance;
@@ -34,7 +34,6 @@ import static org.wikipedia.espresso.util.ViewTools.viewWithTextIsDisplayed;
 import static org.wikipedia.espresso.util.ViewTools.waitFor;
 import static org.wikipedia.espresso.util.ViewTools.whileWithMaxSteps;
 
-@LargeTest
 @RunWith(AndroidJUnit4.class)
 @SuppressWarnings("checkstyle:magicnumber")
 public class SettingsScreenTest {
@@ -56,7 +55,7 @@ public class SettingsScreenTest {
 
         //Click App Theme
         ViewInteraction recyclerView = onView(
-                allOf(withId(R.id.list),
+                allOf(withId(android.R.id.list),
                         childAtPosition(
                                 withId(android.R.id.list_container),
                                 0)));
@@ -131,13 +130,13 @@ public class SettingsScreenTest {
 
     private void takeSettingsPageScreenshots(String mode) {
         ScreenshotTools.snap("SettingsScreen1of3" + mode);
-        onView(withId(R.id.list)).perform(RecyclerViewActions.scrollToPosition(10));
+        onView(withId(android.R.id.list)).perform(RecyclerViewActions.scrollToPosition(10));
         waitFor(WAIT_FOR_1000);
         ScreenshotTools.snap("SettingsScreen2of3" + mode);
-        onView(withId(R.id.list)).perform(RecyclerViewActions.scrollToPosition(18));
+        onView(withId(android.R.id.list)).perform(RecyclerViewActions.scrollToPosition(18));
         waitFor(WAIT_FOR_1000);
         ScreenshotTools.snap("SettingsScreen3of3" + mode);
-        onView(withId(R.id.list)).perform(RecyclerViewActions.scrollToPosition(0));
+        onView(withId(android.R.id.list)).perform(RecyclerViewActions.scrollToPosition(0));
     }
 
     private void runComparisons() throws Exception {

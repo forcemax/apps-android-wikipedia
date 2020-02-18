@@ -1,8 +1,8 @@
 package org.wikipedia.analytics;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.annotation.VisibleForTesting;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
 
 import com.google.gson.annotations.SerializedName;
 
@@ -25,9 +25,9 @@ abstract class Funnel {
     protected static final int SAMPLE_LOG_10 = 10;
     protected static final int SAMPLE_LOG_ALL = 1;
 
-    private static final String DEFAULT_TIMESTAMP_KEY = "ts";
-    private static final String DEFAULT_APP_INSTALL_ID_KEY = "appInstallID";
-    private static final String DEFAULT_SESSION_TOKEN_KEY = "sessionToken";
+    private static final String DEFAULT_TIMESTAMP_KEY = "client_dt";
+    private static final String DEFAULT_APP_INSTALL_ID_KEY = "app_install_id";
+    private static final String DEFAULT_SESSION_TOKEN_KEY = "session_token";
 
     private final String schemaName;
     private final int revision;
@@ -71,7 +71,7 @@ abstract class Funnel {
      * @return Event Data to be sent to server
      */
     protected JSONObject preprocessData(@NonNull JSONObject eventData) {
-        preprocessData(eventData, DEFAULT_TIMESTAMP_KEY, DateUtil.getIso8601LocalDateFormat().format(new Date()));
+        preprocessData(eventData, DEFAULT_TIMESTAMP_KEY, DateUtil.iso8601LocalDateFormat(new Date()));
         preprocessData(eventData, DEFAULT_APP_INSTALL_ID_KEY, app.getAppInstallID());
         preprocessSessionToken(eventData);
         return eventData;
@@ -126,14 +126,9 @@ abstract class Funnel {
         if (ReleaseUtil.isDevRelease()
                 || isUserInSamplingGroup(app.getAppInstallID(), getSampleRate())) {
             JSONObject eventData = new JSONObject();
-
-            //Build the string which is logged to debug EventLogging code
-            String logString = this.getClass().getSimpleName() + ": Sending event";
             for (int i = 0; i < params.length; i += 2) {
                 preprocessData(eventData, params[i].toString(), params[i + 1]);
-                logString += ", event_" + params[i] + " = " + params[i + 1];
             }
-            L.d(logString);
 
             EventLoggingEvent event = new EventLoggingEvent(
                     schemaName,

@@ -1,9 +1,6 @@
 package org.wikipedia.feed.configure;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
 import android.util.AttributeSet;
 import android.view.View;
 import android.view.ViewGroup;
@@ -11,9 +8,12 @@ import android.widget.CheckBox;
 import android.widget.FrameLayout;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
-import org.wikipedia.util.ResourceUtil;
 import org.wikipedia.views.DefaultViewHolder;
 
 import java.util.List;
@@ -22,7 +22,6 @@ public class ConfigureItemLanguageDialogView extends FrameLayout {
     private List<String> langList;
     private List<String> disabledList;
     private RecyclerView langListView;
-    private LanguageItemAdapter adapter;
 
     public ConfigureItemLanguageDialogView(Context context) {
         super(context);
@@ -42,8 +41,7 @@ public class ConfigureItemLanguageDialogView extends FrameLayout {
     public void setContentType(@NonNull List<String> langList, @NonNull List<String> disabledList) {
         this.langList = langList;
         this.disabledList = disabledList;
-        adapter = new LanguageItemAdapter();
-        langListView.setAdapter(adapter);
+        langListView.setAdapter(new LanguageItemAdapter());
     }
 
     private void init() {
@@ -87,8 +85,6 @@ public class ConfigureItemLanguageDialogView extends FrameLayout {
 
         private void updateState() {
             boolean enabled = !disabledList.contains(langCode);
-            langNameView.setTextColor(ResourceUtil.getThemedColor(getContext(),
-                    enabled ? R.attr.material_theme_primary_color : R.attr.material_theme_de_emphasised_color));
             checkbox.setChecked(enabled);
         }
     }

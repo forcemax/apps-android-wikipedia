@@ -1,47 +1,37 @@
 package org.wikipedia.settings;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
-import android.support.v7.preference.Preference;
-import android.support.v7.preference.PreferenceCategory;
-import android.support.v7.preference.PreferenceFragmentCompat;
-import android.support.v7.preference.TwoStatePreference;
+import android.text.TextUtils;
+
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
+import androidx.preference.Preference;
+import androidx.preference.PreferenceFragmentCompat;
+import androidx.preference.TwoStatePreference;
 
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
-import org.wikipedia.crash.RemoteLogException;
+import org.wikipedia.dataclient.WikiSite;
+import org.wikipedia.history.HistoryEntry;
+import org.wikipedia.page.PageActivity;
 import org.wikipedia.page.PageTitle;
 import org.wikipedia.readinglist.database.ReadingList;
 import org.wikipedia.readinglist.database.ReadingListDbHelper;
 import org.wikipedia.readinglist.database.ReadingListPage;
-import org.wikipedia.util.log.L;
+import org.wikipedia.suggestededits.provider.MissingDescriptionProvider;
+import org.wikipedia.util.StringUtil;
 
 import java.util.ArrayList;
 import java.util.List;
+
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.schedulers.Schedulers;
 
 class DeveloperSettingsPreferenceLoader extends BasePreferenceLoader {
     private static final String TEXT_OF_TEST_READING_LIST = "Test reading list";
     private static final String TEXT_OF_READING_LIST = "Reading list";
 
     @NonNull private final Context context;
-
-    @NonNull private final Preference.OnPreferenceChangeListener setRestBaseManuallyChangeListener
-            = new Preference.OnPreferenceChangeListener() {
-        /**
-         * Called when the useRestBaseSetManually preference has been changed by the user. This is
-         * called before the state of the Preference is about to be updated and
-         * before the state is persisted.
-         *
-         * @param preference The changed Preference.
-         * @param newValue   The new value of the Preference.
-         * @return True to update the state of the Preference with the new value.
-         */
-        @Override
-        public boolean onPreferenceChange(Preference preference, Object newValue) {
-            setUseRestBasePreference((Boolean) newValue);
-            return true;
-        }
-    };
 
     @NonNull private final Preference.OnPreferenceChangeListener setMediaWikiBaseUriChangeListener
             = new Preference.OnPreferenceChangeListener() {
@@ -81,26 +71,18 @@ class DeveloperSettingsPreferenceLoader extends BasePreferenceLoader {
 
     DeveloperSettingsPreferenceLoader(@NonNull PreferenceFragmentCompat fragment) {
         super(fragment);
-        this.context = fragment.getActivity();
+        this.context = fragment.requireActivity();
     }
 
+    @SuppressWarnings("checkstyle:methodlength")
     @Override
     public void loadPreferences() {
         loadPreferences(R.xml.developer_preferences);
-        setUpRestBaseCheckboxes();
         setUpMediaWikiSettings();
-        setUpCookies((PreferenceCategory) findPreference(R.string.preferences_developer_cookies_key));
 
         findPreference(context.getString(R.string.preferences_developer_crash_key))
                 .setOnPreferenceClickListener(preference -> {
                     throw new TestException("User tested crash functionality.");
-                });
-
-        findPreference(R.string.preference_key_remote_log)
-                .setOnPreferenceChangeListener((preference, newValue) -> {
-                    L.logRemoteError(new RemoteLogException(newValue.toString()));
-                    WikipediaApp.getInstance().checkCrashes(getActivity());
-                    return true;
                 });
 
         findPreference(R.string.preference_key_add_articles)
@@ -145,31 +127,69 @@ class DeveloperSettingsPreferenceLoader extends BasePreferenceLoader {
                     deleteTestReadingList(TEXT_OF_TEST_READING_LIST, numOfLists);
                     return true;
                 });
-    }
 
-    private void setUpRestBaseCheckboxes() {
-        TwoStatePreference manualPreference = (TwoStatePreference) findPreference(getManualKey());
-        manualPreference.setOnPreferenceChangeListener(setRestBaseManuallyChangeListener);
-        setUseRestBasePreference(manualPreference.isChecked());
-    }
+        findPreference(R.string.preference_key_add_malformed_reading_list_page)
+                .setOnPreferenceChangeListener((preference, newValue) -> {
+                    int numberOfArticles = TextUtils.isEmpty(newValue.toString()) ? 1 :  Integer.valueOf(newValue.toString().trim());
+                    List<ReadingListPage> pages = new ArrayList<>();
+                    for (int i = 0; i < numberOfArticles; i++) {
+                        PageTitle pageTitle = new PageTitle("Malformed page " + i, WikiSite.forLanguageCode("foo"));
+                        pages.add(new ReadingListPage(pageTitle));
+                    }
+                    ReadingListDbHelper.instance().addPagesToList(ReadingListDbHelper.instance().getDefaultList(), pages, true);
+                    return true;
+                });
 
-    private String getManualKey() {
-        return context.getString(R.string.preference_key_use_restbase_manual);
-    }
+        findPreference(context.getString(R.string.preference_key_missing_description_test))
+                .setOnPreferenceClickListener(preference -> {
+                    MissingDescriptionProvider.INSTANCE.getNextArticleWithMissingDescription(WikipediaApp.getInstance().getWikiSite())
+                            .subscribeOn(Schedulers.io())
+                            .observeOn(AndroidSchedulers.mainThread())
+                            .subscribe(summary -> new AlertDialog.Builder(getActivity())
+                                            .setTitle(StringUtil.fromHtml(summary.getDisplayTitle()))
+                                            .setMessage(StringUtil.fromHtml(summary.getExtract()))
+                                            .setPositiveButton("Go", (dialog, which) -> {
+                                                PageTitle title = new PageTitle(summary.getApiTitle(), WikipediaApp.getInstance().getWikiSite());
+                                                getActivity().startActivity(PageActivity.newIntentForNewTab(getActivity(), new HistoryEntry(title, HistoryEntry.SOURCE_INTERNAL_LINK), title));
+                                            })
+                                            .setNegativeButton(R.string.cancel, null)
+                                            .show(),
+                                    throwable -> new AlertDialog.Builder(getActivity())
+                                            .setMessage(throwable.getMessage())
+                                            .setPositiveButton(R.string.ok, null)
+                                            .show());
+                    return true;
+                });
 
-    private void setUseRestBasePreference(boolean manualMode) {
-        RbSwitch.INSTANCE.update();
-        TwoStatePreference useRestBasePref = getUseRestBasePreference();
-        useRestBasePref.setEnabled(manualMode);
-        useRestBasePref.setChecked(RbSwitch.INSTANCE.isRestBaseEnabled());
-    }
+        findPreference(context.getString(R.string.preference_key_missing_description_test2))
+                .setOnPreferenceClickListener(preference -> {
+                    MissingDescriptionProvider.INSTANCE.getNextArticleWithMissingDescription(WikipediaApp.getInstance().getWikiSite(),
+                            WikipediaApp.getInstance().language().getAppLanguageCodes().get(1), true)
+                            .subscribeOn(Schedulers.io())
+                            .observeOn(AndroidSchedulers.mainThread())
+                            .subscribe(pair -> new AlertDialog.Builder(getActivity())
+                                            .setTitle(StringUtil.fromHtml(pair.getSecond().getDisplayTitle()))
+                                            .setMessage(StringUtil.fromHtml(pair.getSecond().getDescription()))
+                                            .setPositiveButton("Go", (dialog, which) -> {
+                                                PageTitle title = new PageTitle(pair.getSecond().getApiTitle(), WikiSite.forLanguageCode(WikipediaApp.getInstance().language().getAppLanguageCodes().get(1)));
+                                                getActivity().startActivity(PageActivity.newIntentForNewTab(getActivity(), new HistoryEntry(title, HistoryEntry.SOURCE_INTERNAL_LINK), title));
+                                            })
+                                            .setNegativeButton(R.string.cancel, null)
+                                            .show(),
+                                    throwable -> new AlertDialog.Builder(getActivity())
+                                            .setMessage(throwable.getMessage())
+                                            .setPositiveButton(R.string.ok, null)
+                                            .show());
+                    return true;
+                });
 
-    private TwoStatePreference getUseRestBasePreference() {
-        return (TwoStatePreference) findPreference(getUseRestBaseKey());
-    }
-
-    private String getUseRestBaseKey() {
-        return context.getString(R.string.preference_key_use_restbase);
+        findPreference(context.getString(R.string.preferences_developer_announcement_reset_shown_dialogs_key)).setSummary(context.getString(R.string.preferences_developer_announcement_reset_shown_dialogs_summary, Prefs.getAnnouncementShownDialogs().size()));
+        findPreference(context.getString(R.string.preferences_developer_announcement_reset_shown_dialogs_key))
+                .setOnPreferenceClickListener(preference -> {
+                    Prefs.resetAnnouncementShownDialogs();
+                    loadPreferences();
+                    return true;
+                });
     }
 
     private void setUpMediaWikiSettings() {
@@ -217,23 +237,6 @@ class DeveloperSettingsPreferenceLoader extends BasePreferenceLoader {
                 numOfLists--;
             }
         }
-    }
-
-    private void setUpCookies(@NonNull PreferenceCategory cat) {
-        List<String> domains = Prefs.getCookieDomainsAsList();
-        for (String domain : domains) {
-            String key = Prefs.getCookiesForDomainKey(domain);
-            Preference pref = newDataStringPref(key, domain);
-            cat.addPreference(pref);
-        }
-    }
-
-    private EditTextAutoSummarizePreference newDataStringPref(String key, String title) {
-        EditTextAutoSummarizePreference pref = new EditTextAutoSummarizePreference(context, null,
-                R.attr.editTextAutoSummarizePreferenceStyle);
-        pref.setKey(key);
-        pref.setTitle(title);
-        return pref;
     }
 
     private static class TestException extends RuntimeException {

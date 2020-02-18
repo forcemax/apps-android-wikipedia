@@ -1,7 +1,7 @@
 package org.wikipedia.dataclient.okhttp;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import org.wikipedia.dataclient.ServiceError;
 import org.wikipedia.dataclient.restbase.RbServiceError;
@@ -29,6 +29,12 @@ public class HttpStatusException extends IOException {
         }
     }
 
+    public HttpStatusException(@Nullable ServiceError error) {
+        serviceError = error;
+        code = 0;
+        url = "";
+    }
+
     public int code() {
         return code;
     }
@@ -39,7 +45,7 @@ public class HttpStatusException extends IOException {
 
     @Override
     public String getMessage() {
-        String str = "Code: " + Integer.toString(code) + ", URL: " + url;
+        String str = "Code: " + code + ", URL: " + url;
         if (serviceError != null) {
             str += ", title: " + serviceError.getTitle() + ", detail: " + serviceError.getDetails();
         }

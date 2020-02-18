@@ -1,12 +1,12 @@
 package org.wikipedia.feed.onthisday;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
 import org.wikipedia.dataclient.WikiSite;
-import org.wikipedia.dataclient.restbase.page.RbPageSummary;
+import org.wikipedia.dataclient.page.PageSummary;
 import org.wikipedia.feed.model.CardType;
 import org.wikipedia.feed.model.WikiSiteCard;
 import org.wikipedia.feed.view.FeedAdapter;
@@ -15,6 +15,7 @@ import org.wikipedia.util.DateUtil;
 import java.util.Calendar;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 public class OnThisDayCard extends WikiSiteCard {
     private int nextYear;
@@ -75,11 +76,15 @@ public class OnThisDayCard extends WikiSiteCard {
         return nextYear;
     }
 
-    @Nullable public List<RbPageSummary> pages() {
+    @Nullable public List<PageSummary> pages() {
         return eventShownOnCard.pages();
     }
 
     int getAge() {
         return age;
+    }
+
+    @Override protected int dismissHashCode() {
+        return (int) TimeUnit.MILLISECONDS.toDays(date.getTime().getTime()) + wikiSite().hashCode();
     }
 }

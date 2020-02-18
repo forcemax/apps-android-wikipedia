@@ -2,8 +2,11 @@ package org.wikipedia.history;
 
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.support.annotation.NonNull;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import org.apache.commons.lang3.StringUtils;
 import org.wikipedia.page.PageTitle;
 
 import java.util.Date;
@@ -18,7 +21,6 @@ public class HistoryEntry implements Parcelable {
     public static final int SOURCE_LANGUAGE_LINK = 6;
     public static final int SOURCE_RANDOM = 7;
     public static final int SOURCE_MAIN_PAGE = 8;
-    public static final int SOURCE_NEARBY = 9;
     public static final int SOURCE_DISAMBIG = 10;
     public static final int SOURCE_READING_LIST = 11;
     public static final int SOURCE_FEED_CONTINUE_READING = 12;
@@ -34,11 +36,20 @@ public class HistoryEntry implements Parcelable {
     public static final int SOURCE_FEED_MOST_READ_ACTIVITY = 22;
     public static final int SOURCE_ON_THIS_DAY_CARD = 23;
     public static final int SOURCE_ON_THIS_DAY_ACTIVITY = 24;
+    public static final int SOURCE_NOTIFICATION = 25;
+    public static final int SOURCE_NOTIFICATION_SYSTEM = 26;
+    public static final int SOURCE_FLOATING_QUEUE = 27;
+    public static final int SOURCE_EDIT_DESCRIPTION = 28;
+    public static final int SOURCE_WIDGET = 29;
+    public static final int SOURCE_SUGGESTED_EDITS = 30;
 
     @NonNull private final PageTitle title;
     @NonNull private final Date timestamp;
     private final int source;
     private final int timeSpentSec;
+
+    // Transient variable, not stored in the db, to be set when navigating back and forth between articles.
+    @Nullable private String referrer;
 
     public HistoryEntry(@NonNull PageTitle title, @NonNull Date timestamp, int source,
                         int timeSpentSec) {
@@ -70,6 +81,14 @@ public class HistoryEntry implements Parcelable {
 
     public int getTimeSpentSec() {
         return timeSpentSec;
+    }
+
+    public void setReferrer(@Nullable String referrer) {
+        this.referrer = referrer;
+    }
+
+    @Nullable public String getReferrer() {
+        return referrer;
     }
 
     @Override
@@ -113,6 +132,7 @@ public class HistoryEntry implements Parcelable {
         dest.writeLong(getTimestamp().getTime());
         dest.writeInt(getSource());
         dest.writeInt(getTimeSpentSec());
+        dest.writeString(StringUtils.defaultString(referrer));
     }
 
     private HistoryEntry(Parcel in) {
@@ -120,6 +140,7 @@ public class HistoryEntry implements Parcelable {
         this.timestamp = new Date(in.readLong());
         this.source = in.readInt();
         this.timeSpentSec = in.readInt();
+        this.referrer = in.readString();
     }
 
     public static final Parcelable.Creator<HistoryEntry> CREATOR

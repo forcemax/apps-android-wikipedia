@@ -1,17 +1,17 @@
 package org.wikipedia.analytics;
 
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import org.json.JSONObject;
+import org.wikipedia.Constants.InvokeSource;
 import org.wikipedia.WikipediaApp;
 import org.wikipedia.dataclient.WikiSite;
-import org.wikipedia.readinglist.AddToReadingListDialog;
 import org.wikipedia.readinglist.database.ReadingList;
 import org.wikipedia.settings.Prefs;
 
 public class ReadingListsFunnel extends Funnel {
     private static final String SCHEMA_NAME = "MobileWikiAppReadingLists";
-    private static final int REV_ID = 17837080;
+    private static final int REV_ID = 18118739;
 
     public ReadingListsFunnel() {
         super(WikipediaApp.getInstance(), SCHEMA_NAME, REV_ID);
@@ -21,18 +21,18 @@ public class ReadingListsFunnel extends Funnel {
         super(WikipediaApp.getInstance(), SCHEMA_NAME, REV_ID, wiki);
     }
 
-    public void logAddClick(AddToReadingListDialog.InvokeSource source) {
+    public void logAddClick(InvokeSource source) {
         log(
                 "action", "addclick",
-                "addsource", source.code()
+                "addsource", source.ordinal()
         );
     }
 
     public void logAddToList(ReadingList list, int listCount,
-                             AddToReadingListDialog.InvokeSource source) {
+                             InvokeSource source) {
         log(
                 "action", list.pages().isEmpty() ? "addtonew" : "addtoexisting",
-                "addsource", source.code(),
+                "addsource", source.ordinal(),
                 "itemcount", list.pages().size(),
                 "listcount", listCount
         );

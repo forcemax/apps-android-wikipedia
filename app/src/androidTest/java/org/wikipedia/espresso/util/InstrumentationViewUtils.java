@@ -1,20 +1,19 @@
 package org.wikipedia.espresso.util;
 
-import android.support.test.espresso.Espresso;
-import android.support.test.espresso.ViewInteraction;
+import androidx.test.espresso.Espresso;
+import androidx.test.espresso.ViewInteraction;
 
 import org.wikipedia.R;
 
-import static android.support.test.InstrumentationRegistry.getInstrumentation;
-import static android.support.test.espresso.Espresso.onView;
-import static android.support.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu;
-import static android.support.test.espresso.action.ViewActions.click;
-import static android.support.test.espresso.contrib.RecyclerViewActions.actionOnItemAtPosition;
-import static android.support.test.espresso.matcher.ViewMatchers.isDisplayed;
-import static android.support.test.espresso.matcher.ViewMatchers.withClassName;
-import static android.support.test.espresso.matcher.ViewMatchers.withContentDescription;
-import static android.support.test.espresso.matcher.ViewMatchers.withId;
-import static android.support.test.espresso.matcher.ViewMatchers.withText;
+import static androidx.test.InstrumentationRegistry.getInstrumentation;
+import static androidx.test.espresso.Espresso.onView;
+import static androidx.test.espresso.Espresso.openActionBarOverflowOrOptionsMenu;
+import static androidx.test.espresso.action.ViewActions.click;
+import static androidx.test.espresso.contrib.RecyclerViewActions.actionOnItemAtPosition;
+import static androidx.test.espresso.matcher.ViewMatchers.isDisplayed;
+import static androidx.test.espresso.matcher.ViewMatchers.withClassName;
+import static androidx.test.espresso.matcher.ViewMatchers.withId;
+import static androidx.test.espresso.matcher.ViewMatchers.withText;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.AllOf.allOf;
 import static org.wikipedia.espresso.util.ViewTools.WAIT_FOR_1000;
@@ -28,6 +27,7 @@ import static org.wikipedia.espresso.util.ViewTools.whileWithMaxSteps;
 
 @SuppressWarnings("checkstyle:magicnumber")
 public final class InstrumentationViewUtils {
+    // TODO: re design the steps of tests
 
     //Make sure to call the switch from Explore tab
     public static void switchToDarkMode() {
@@ -35,34 +35,13 @@ public final class InstrumentationViewUtils {
                 () -> !viewIsDisplayed(R.id.fragment_feed_feed),
                 () -> waitFor(2000));
 
-        ViewInteraction actionMenuItemView = onView(
-                allOf(withId(R.id.menu_overflow_button), withContentDescription("More options"),
-                        childAtPosition(
-                                childAtPosition(
-                                        withId(R.id.single_fragment_toolbar),
-                                        1),
-                                0),
-                        isDisplayed()));
-        actionMenuItemView.perform(click());
-
-        ViewInteraction appCompatTextView2 = onView(
-                allOf(withId(R.id.explore_overflow_settings), withText("Settings"),
-                        childAtPosition(
-                                childAtPosition(
-                                        withClassName(is("android.widget.LinearLayout")),
-                                        1),
-                                2),
-                        isDisplayed()));
-        appCompatTextView2.perform(click());
-
         whileWithMaxSteps(
                 () -> !viewWithTextIsDisplayed("General"),
                 () -> waitFor(WAIT_FOR_2000));
 
-
         //Click App Theme
         ViewInteraction recyclerView = onView(
-                allOf(withId(R.id.list),
+                allOf(withId(android.R.id.list),
                         childAtPosition(
                                 withId(android.R.id.list_container),
                                 0)));
@@ -91,25 +70,7 @@ public final class InstrumentationViewUtils {
                 () -> !viewIsDisplayed(R.id.fragment_feed_feed),
                 () -> waitFor(2000));
 
-        ViewInteraction actionMenuItemView = onView(
-                allOf(withId(R.id.menu_overflow_button), withContentDescription("More options"),
-                        childAtPosition(
-                                childAtPosition(
-                                        withId(R.id.single_fragment_toolbar),
-                                        1),
-                                0),
-                        isDisplayed()));
-        actionMenuItemView.perform(click());
-
-        ViewInteraction appCompatTextView2 = onView(
-                allOf(withId(R.id.explore_overflow_settings), withText("Settings"),
-                        childAtPosition(
-                                childAtPosition(
-                                        withClassName(is("android.widget.LinearLayout")),
-                                        1),
-                                2),
-                        isDisplayed()));
-        appCompatTextView2.perform(click());
+        // TODO: redesign the way of entering SettingsActivity
 
         whileWithMaxSteps(
                 () -> !viewWithTextIsDisplayed("General"),
@@ -118,7 +79,7 @@ public final class InstrumentationViewUtils {
 
         //Click App Theme
         ViewInteraction recyclerView = onView(
-                allOf(withId(R.id.list),
+                allOf(withId(android.R.id.list),
                         childAtPosition(
                                 withId(android.R.id.list_container),
                                 0)));

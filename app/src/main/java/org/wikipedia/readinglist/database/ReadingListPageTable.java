@@ -3,28 +3,22 @@ package org.wikipedia.readinglist.database;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.support.annotation.NonNull;
-import android.util.Base64;
+
+import androidx.annotation.NonNull;
 
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
 import org.wikipedia.database.DatabaseTable;
 import org.wikipedia.database.column.Column;
-import org.wikipedia.database.contract.OldReadingListContract;
-import org.wikipedia.database.contract.OldReadingListPageContract;
 import org.wikipedia.database.contract.ReadingListPageContract;
 import org.wikipedia.dataclient.WikiSite;
-import org.wikipedia.events.SplitLargeListsEvent;
-import org.wikipedia.page.PageTitle;
-import org.wikipedia.settings.SiteInfoClient;
-import org.wikipedia.util.log.L;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 public class ReadingListPageTable extends DatabaseTable<ReadingListPage> {
     private static final int DB_VER_INTRODUCED = 18;
+    private static final int DB_VER_API_TITLE_ADDED = 19;
 
     public ReadingListPageTable() {
         super(ReadingListPageContract.TABLE, ReadingListPageContract.URI);
@@ -35,7 +29,8 @@ public class ReadingListPageTable extends DatabaseTable<ReadingListPage> {
         String site = ReadingListPageContract.Col.SITE.val(cursor);
         ReadingListPage page = new ReadingListPage(lang == null ? new WikiSite(site) : new WikiSite(site, lang),
                 ReadingListPageContract.Col.NAMESPACE.val(cursor),
-                ReadingListPageContract.Col.TITLE.val(cursor),
+                ReadingListPageContract.Col.DISPLAY_TITLE.val(cursor),
+                ReadingListPageContract.Col.API_TITLE.val(cursor),
                 ReadingListPageContract.Col.LISTID.val(cursor));
         page.id(ReadingListPageContract.Col.ID.val(cursor));
         page.description(ReadingListPageContract.Col.DESCRIPTION.val(cursor));
@@ -47,6 +42,7 @@ public class ReadingListPageTable extends DatabaseTable<ReadingListPage> {
         page.status(ReadingListPageContract.Col.STATUS.val(cursor));
         page.sizeBytes(ReadingListPageContract.Col.SIZEBYTES.val(cursor));
         page.remoteId(ReadingListPageContract.Col.REMOTEID.val(cursor));
+        page.lang(ReadingListPageContract.Col.LANG.val(cursor));
         return page;
     }
 
@@ -59,7 +55,7 @@ public class ReadingListPageTable extends DatabaseTable<ReadingListPage> {
                 cols.add(ReadingListPageContract.Col.SITE);
                 cols.add(ReadingListPageContract.Col.LANG);
                 cols.add(ReadingListPageContract.Col.NAMESPACE);
-                cols.add(ReadingListPageContract.Col.TITLE);
+                cols.add(ReadingListPageContract.Col.DISPLAY_TITLE);
                 cols.add(ReadingListPageContract.Col.MTIME);
                 cols.add(ReadingListPageContract.Col.ATIME);
                 cols.add(ReadingListPageContract.Col.THUMBNAIL_URL);
@@ -70,6 +66,8 @@ public class ReadingListPageTable extends DatabaseTable<ReadingListPage> {
                 cols.add(ReadingListPageContract.Col.SIZEBYTES);
                 cols.add(ReadingListPageContract.Col.REMOTEID);
                 return cols.toArray(new Column<?>[cols.size()]);
+            case DB_VER_API_TITLE_ADDED:
+                return new Column<?>[] {ReadingListPageContract.Col.API_TITLE};
             default:
                 return super.getColumnsAdded(version);
         }
@@ -80,9 +78,6 @@ public class ReadingListPageTable extends DatabaseTable<ReadingListPage> {
         if (toVersion == DB_VER_INTRODUCED) {
             List<ReadingList> currentLists = new ArrayList<>();
             createDefaultList(db, currentLists);
-            if (fromVersion > 0) {
-                importOldLists(db, currentLists);
-            }
             renameListsWithIdenticalNameAsDefault(db, currentLists);
             // TODO: add other one-time conversions here.
         }
@@ -94,7 +89,8 @@ public class ReadingListPageTable extends DatabaseTable<ReadingListPage> {
         contentValues.put(ReadingListPageContract.Col.SITE.getName(), row.wiki().authority());
         contentValues.put(ReadingListPageContract.Col.LANG.getName(), row.wiki().languageCode());
         contentValues.put(ReadingListPageContract.Col.NAMESPACE.getName(), row.namespace().code());
-        contentValues.put(ReadingListPageContract.Col.TITLE.getName(), row.title());
+        contentValues.put(ReadingListPageContract.Col.DISPLAY_TITLE.getName(), row.title());
+        contentValues.put(ReadingListPageContract.Col.API_TITLE.getName(), row.apiTitle());
         contentValues.put(ReadingListPageContract.Col.MTIME.getName(), row.mtime());
         contentValues.put(ReadingListPageContract.Col.ATIME.getName(), row.atime());
         contentValues.put(ReadingListPageContract.Col.THUMBNAIL_URL.getName(), row.thumbUrl());
@@ -137,107 +133,5 @@ public class ReadingListPageTable extends DatabaseTable<ReadingListPage> {
                 ReadingListDbHelper.instance().updateList(db, list, false);
             }
         }
-    }
-
-    // TODO: Remove in Dec 2018
-    private void importOldLists(@NonNull SQLiteDatabase db, @NonNull List<ReadingList> lists) {
-        try {
-            try (Cursor cursor = db.query(OldReadingListContract.TABLE, null, null, null, null, null, null)) {
-                while (cursor.moveToNext()) {
-                    ReadingList list = ReadingListDbHelper.instance().createList(db,
-                            OldReadingListContract.Col.TITLE.val(cursor),
-                            OldReadingListContract.Col.DESCRIPTION.val(cursor));
-                    lists.add(list);
-                }
-            }
-            boolean shouldShowLargeSplitMessage = false;
-            try (Cursor cursor = db.rawQuery("SELECT * FROM " + OldReadingListPageContract.TABLE_PAGE
-                    + " JOIN " + OldReadingListPageContract.TABLE_DISK + " ON ("
-                    + OldReadingListPageContract.Col.KEY.qualifiedName() + " = "
-                    + OldReadingListPageContract.Col.DISK_KEY.qualifiedName() + ")", null)) {
-                while (cursor.moveToNext()) {
-                    Set<String> listKeys = OldReadingListPageContract.Col.LIST_KEYS.val(cursor);
-                    String lang = OldReadingListPageContract.Col.LANG.val(cursor);
-                    String site = OldReadingListPageContract.Col.SITE.val(cursor);
-
-                    PageTitle title = new PageTitle(OldReadingListPageContract.Col.NAMESPACE.val(cursor).toLegacyString(),
-                            OldReadingListPageContract.Col.TITLE.val(cursor),
-                            lang == null ? new WikiSite(site) : new WikiSite(site, lang));
-                    title.setThumbUrl(OldReadingListPageContract.Col.THUMBNAIL_URL.val(cursor));
-                    title.setDescription(OldReadingListPageContract.Col.DESCRIPTION.val(cursor));
-                    ReadingListPage page = new ReadingListPage(title);
-                    page.atime(OldReadingListPageContract.Col.ATIME.val(cursor));
-                    page.mtime(OldReadingListPageContract.Col.MTIME.val(cursor));
-                    page.sizeBytes(OldReadingListPageContract.Col.LOGICAL_SIZE.val(cursor));
-
-                    long diskStatus = OldReadingListPageContract.Col.DISK_STATUS.val(cursor);
-                    if (diskStatus == OldReadingListPageContract.STATUS_DELETED) {
-                        continue;
-                    } else if (diskStatus == OldReadingListPageContract.STATUS_ONLINE) {
-                        page.offline(false);
-                        page.status(ReadingListPage.STATUS_QUEUE_FOR_SAVE);
-                    } else if (diskStatus == OldReadingListPageContract.STATUS_UNSAVED) {
-                        page.offline(false);
-                        page.status(ReadingListPage.STATUS_SAVED);
-                    } else if (diskStatus == OldReadingListPageContract.STATUS_OUTDATED) {
-                        page.offline(true);
-                        page.status(ReadingListPage.STATUS_QUEUE_FOR_SAVE);
-                    } else if (diskStatus == OldReadingListPageContract.STATUS_SAVED) {
-                        page.offline(true);
-                        page.status(ReadingListPage.STATUS_SAVED);
-                    }
-                    ReadingList origList = null;
-                    for (ReadingList list : lists) {
-                        if (listKeys.contains(getListKey(list.dbTitle()))) {
-                            origList = list;
-                            break;
-                        }
-                    }
-                    if (origList == null) {
-                        continue;
-                    }
-
-                    int splitListIndex = 0;
-                    ReadingList newList = origList;
-                    while (newList.pages().size() >= SiteInfoClient.getMaxPagesPerReadingList()) {
-                        shouldShowLargeSplitMessage = true;
-                        newList = null;
-                        String newListName = origList.dbTitle() + " (" + Integer.toString(++splitListIndex) + ")";
-                        for (ReadingList list : lists) {
-                            if (list.dbTitle().equals(newListName)) {
-                                newList = list;
-                                break;
-                            }
-                        }
-                        if (newList == null) {
-                            newList = ReadingListDbHelper.instance().createList(db, newListName, origList.description());
-                            lists.add(newList);
-                        }
-                    }
-
-                    newList.pages().add(page);
-                }
-
-                for (ReadingList list : lists) {
-                    ReadingListDbHelper.instance().addPagesToList(db, list, list.pages());
-                }
-            }
-
-            if (shouldShowLargeSplitMessage) {
-                WikipediaApp.getInstance().getBus().post(new SplitLargeListsEvent());
-            }
-
-            db.execSQL("DROP TABLE IF EXISTS " + OldReadingListContract.TABLE);
-            db.execSQL("DROP TABLE IF EXISTS " + OldReadingListPageContract.TABLE_PAGE);
-            db.execSQL("DROP TABLE IF EXISTS " + OldReadingListPageContract.TABLE_DISK);
-            db.execSQL("DROP TABLE IF EXISTS " + OldReadingListPageContract.TABLE_HTTP);
-        } catch (Exception e) {
-            L.d("Error while importing old reading lists.");
-            e.printStackTrace();
-        }
-    }
-
-    @NonNull private static String getListKey(@NonNull String title) {
-        return Base64.encodeToString(title.getBytes(), Base64.NO_WRAP);
     }
 }

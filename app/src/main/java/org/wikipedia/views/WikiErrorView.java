@@ -2,30 +2,34 @@ package org.wikipedia.views;
 
 import android.content.Context;
 import android.content.res.Resources;
-import android.support.annotation.DrawableRes;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.annotation.StringRes;
-import android.support.v4.content.ContextCompat;
 import android.util.AttributeSet;
 import android.view.View;
+import android.widget.Button;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.Space;
 import android.widget.TextView;
 
+import androidx.annotation.DrawableRes;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
+import androidx.appcompat.content.res.AppCompatResources;
+
 import org.wikipedia.R;
+import org.wikipedia.dataclient.mwapi.MwException;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
 
 import static org.wikipedia.util.ThrowableUtil.is404;
 import static org.wikipedia.util.ThrowableUtil.isOffline;
+import static org.wikipedia.util.ThrowableUtil.isTimeout;
 
 public class WikiErrorView extends LinearLayout {
     @BindView(R.id.view_wiki_error_icon) ImageView icon;
     @BindView(R.id.view_wiki_error_text) TextView errorText;
-    @BindView(R.id.view_wiki_error_button) TextView button;
+    @BindView(R.id.view_wiki_error_button) Button button;
     @BindView(R.id.view_wiki_error_footer_text) TextView footerText;
     @BindView(R.id.view_wiki_error_article_content_top_offset) Space contentTopOffset;
     @BindView(R.id.view_wiki_error_article_tab_layout_offset) Space tabLayoutOffset;
@@ -67,13 +71,20 @@ public class WikiErrorView extends LinearLayout {
     public void setError(@Nullable Throwable caught) {
         Resources resources = getContext().getResources();
         ErrorType errorType = getErrorType(caught);
-        icon.setImageDrawable(ContextCompat.getDrawable(getContext(), errorType.icon()));
-        errorText.setText(resources.getString(errorType.text()));
+        icon.setImageDrawable(AppCompatResources.getDrawable(getContext(), errorType.icon()));
+        if (caught instanceof MwException) {
+            errorText.setText(caught.getMessage());
+        } else {
+            errorText.setText(resources.getString(errorType.text()));
+        }
         button.setText(resources.getString(errorType.buttonText()));
         button.setOnClickListener(errorType.buttonClickListener(this));
         if (errorType.hasFooterText()) {
             footerLayout.setVisibility(VISIBLE);
             footerText.setText(resources.getString(errorType.footerText()));
+        } else if (errorType == ErrorType.GENERIC && caught != null) {
+            footerLayout.setVisibility(VISIBLE);
+            footerText.setText(caught.getLocalizedMessage());
         } else {
             footerLayout.setVisibility(GONE);
         }
@@ -82,8 +93,9 @@ public class WikiErrorView extends LinearLayout {
     ErrorType getErrorType(@Nullable Throwable caught) {
         if (caught != null && is404(caught)) {
             return ErrorType.PAGE_MISSING;
-        }
-        if (caught != null && isOffline(caught)) {
+        } else if (isTimeout(caught)) {
+            return ErrorType.TIMEOUT;
+        } else if (isOffline(caught)) {
             return ErrorType.OFFLINE;
         }
         return ErrorType.GENERIC;
@@ -100,7 +112,15 @@ public class WikiErrorView extends LinearLayout {
 
 
         PAGE_OFFLINE(R.drawable.ic_no_article, R.string.page_offline_notice_cannot_load_while_offline,
-                R.string.page_error_retry, R.string.page_offline_notice_add_to_reading_list) {
+                R.string.article_load_error_retry, R.string.page_offline_notice_add_to_reading_list) {
+            @Nullable @Override
+            OnClickListener buttonClickListener(@NonNull WikiErrorView errorView) {
+                return errorView.getRetryListener();
+            }
+        },
+
+        TIMEOUT(R.drawable.ic_error_black_24dp, R.string.view_wiki_error_message_timeout,
+                R.string.offline_load_error_retry) {
             @Nullable @Override
             OnClickListener buttonClickListener(@NonNull WikiErrorView errorView) {
                 return errorView.getRetryListener();
@@ -108,7 +128,7 @@ public class WikiErrorView extends LinearLayout {
         },
 
         OFFLINE(R.drawable.ic_portable_wifi_off_black_24px, R.string.view_wiki_error_message_offline,
-                R.string.page_error_retry) {
+                R.string.offline_load_error_retry) {
             @Nullable @Override
             OnClickListener buttonClickListener(@NonNull WikiErrorView errorView) {
                 return errorView.getRetryListener();
@@ -116,7 +136,7 @@ public class WikiErrorView extends LinearLayout {
         },
 
         GENERIC(R.drawable.ic_error_black_24dp, R.string.error_message_generic,
-                R.string.page_error_back_to_main) {
+                R.string.error_back) {
             @Nullable @Override
             OnClickListener buttonClickListener(@NonNull WikiErrorView errorView) {
                 return errorView.getBackListener();

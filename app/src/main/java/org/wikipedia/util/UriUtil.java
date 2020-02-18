@@ -1,32 +1,30 @@
 package org.wikipedia.util;
 
+import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
-import android.support.annotation.NonNull;
-import android.support.annotation.StringRes;
-import android.support.annotation.VisibleForTesting;
 import android.text.TextUtils;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.StringRes;
+import androidx.annotation.VisibleForTesting;
 
 import org.apache.commons.lang3.StringUtils;
 import org.wikipedia.WikipediaApp;
 import org.wikipedia.dataclient.WikiSite;
 import org.wikipedia.page.PageTitle;
-import org.wikipedia.settings.Prefs;
 import org.wikipedia.util.log.L;
-import org.wikipedia.zero.WikipediaZeroHandler;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 
-import static org.wikipedia.zero.WikipediaZeroHandler.showZeroExitInterstitialDialog;
-
 public final class UriUtil {
-    public static final String LOCAL_URL_OFFLINE_LIBRARY = "#offlinelibrary";
     public static final String LOCAL_URL_SETTINGS = "#settings";
     public static final String LOCAL_URL_LOGIN = "#login";
     public static final String LOCAL_URL_CUSTOMIZE_FEED = "#customizefeed";
+    public static final String LOCAL_URL_LANGUAGES = "#languages";
 
     /**
      * Decodes a URL-encoded string into its UTF-8 equivalent. If the string cannot be decoded, the
@@ -63,12 +61,16 @@ public final class UriUtil {
      * @param uri URI to open in an external browser
      */
     public static void visitInExternalBrowser(final Context context, Uri uri) {
-        Intent chooserIntent = ShareUtil.createChooserIntent(new Intent(Intent.ACTION_VIEW, uri),
-                null, context);
+        Intent targetIntent = new Intent(Intent.ACTION_VIEW, uri);
+        Intent chooserIntent = ShareUtil.createChooserIntent(targetIntent, null, context);
         if (chooserIntent == null) {
-            // This means that there was no way to handle this link.
-            // We will just show a toast now. FIXME: Make this more visible?
-            ShareUtil.showUnresolvableIntentMessage(context);
+            try {
+                context.startActivity(targetIntent);
+            } catch (ActivityNotFoundException e) {
+                // This means that there was no way to handle this link.
+                // We will just show a toast now. FIXME: Make this more visible?
+                ShareUtil.showUnresolvableIntentMessage(context);
+            }
         } else {
             chooserIntent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             context.startActivity(chooserIntent);
@@ -117,20 +119,7 @@ public final class UriUtil {
     }
 
     public static void handleExternalLink(final Context context, final Uri uri) {
-        final WikipediaZeroHandler zeroHandler = WikipediaApp.getInstance()
-                .getWikipediaZeroHandler();
-
-        if (!zeroHandler.isZeroEnabled()) {
-            visitInExternalBrowser(context, uri);
-            return;
-        }
-
-        if (!Prefs.isShowZeroInterstitialEnabled()) {
-            visitInExternalBrowser(context, uri);
-            return;
-        }
-
-        showZeroExitInterstitialDialog(context, uri);
+        visitInExternalBrowser(context, uri);
     }
 
     public static String getUrlWithProvenance(Context context, PageTitle title,
@@ -146,7 +135,7 @@ public final class UriUtil {
         return removeFragment(removeLinkPrefix(url)).replace("_", " ");
     }
 
-    /** Get language variant code from a Uri, e.g. "zh-*", otherwise returns empty string. */
+    /** Get language variant code from a Uri, e.g. "zh.*", otherwise returns empty string. */
     @NonNull
     public static String getLanguageVariantFromUri(@NonNull Uri uri) {
         if (TextUtils.isEmpty(uri.getPath())) {
@@ -159,7 +148,7 @@ public final class UriUtil {
     /** For internal links only */
     @NonNull
     public static String removeInternalLinkPrefix(@NonNull String link) {
-        return link.replaceFirst("/wiki/|/zh-.*/", "");
+        return link.replaceFirst("/wiki/|/zh.*/", "");
     }
 
     /** For links that could be internal or external links */

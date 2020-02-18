@@ -3,7 +3,7 @@
    TO HAVE YOUR CHANGES OVERWRITTEN */
 package org.wikipedia.staticdata;
 
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,7 +21,7 @@ public final class FileAliasData {
 
     @SuppressWarnings({"checkstyle:methodlength", "SpellCheckingInspection"})
     private static Map<String, String> newMap() {
-        final int size = 293;
+        final int size = 299;
         Map<String, String> map = new HashMap<>(size);
         map.put("ab", "Афаил");
         map.put("ace", "Beureukaih");
@@ -43,6 +43,7 @@ public final class FileAliasData {
         map.put("az", "Şəkil");
         map.put("azb", "فایل");
         map.put("ba", "Файл");
+        map.put("ban", "Berkas");
         map.put("bar", "Datei");
         map.put("bat-smg", "Abruozdielis");
         map.put("bcl", "Ladawan");
@@ -114,6 +115,7 @@ public final class FileAliasData {
         map.put("gn", "Ta'ãnga");
         map.put("gom", "फायल");
         map.put("gor", "Berkas");
+        map.put("got", "𐍆𐌴𐌹𐌻𐌰");
         map.put("gu", "ચિત્ર");
         map.put("gv", "Coadan");
         map.put("ha", "File");
@@ -127,6 +129,7 @@ public final class FileAliasData {
         map.put("ht", "Fichye");
         map.put("hu", "Fájl");
         map.put("hy", "Պատկեր");
+        map.put("hyw", "Պատկեր");
         map.put("ia", "File");
         map.put("id", "Berkas");
         map.put("ie", "File");
@@ -207,6 +210,7 @@ public final class FileAliasData {
         map.put("nn", "Fil");
         map.put("nb", "Fil");
         map.put("nov", "File");
+        map.put("nqo", "ߞߐߕߐ߮");
         map.put("nrm", "Fichier");
         map.put("nso", "Seswantšho");
         map.put("nv", "Eʼelyaaígíí");
@@ -243,6 +247,7 @@ public final class FileAliasData {
         map.put("rw", "File");
         map.put("sa", "सञ्चिका");
         map.put("sah", "Билэ");
+        map.put("sat", "ᱨᱮᱫ");
         map.put("sc", "File");
         map.put("scn", "File");
         map.put("sco", "File");
@@ -250,6 +255,7 @@ public final class FileAliasData {
         map.put("se", "Fiila");
         map.put("sg", "Fichier");
         map.put("sh", "Datoteka");
+        map.put("shn", "ၾၢႆႇ");
         map.put("si", "ගොනුව");
         map.put("simple", "File");
         map.put("sk", "Súbor");

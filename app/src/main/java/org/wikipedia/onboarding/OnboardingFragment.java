@@ -1,18 +1,18 @@
 package org.wikipedia.onboarding;
 
-import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
-import android.support.annotation.DrawableRes;
-import android.support.annotation.StringRes;
-import android.support.v4.app.Fragment;
-import android.support.v4.content.ContextCompat;
-import android.support.v4.view.PagerAdapter;
-import android.support.v4.view.ViewPager;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
-import android.widget.FrameLayout;
-import android.widget.TextView;
+import android.widget.Button;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.StringRes;
+import androidx.fragment.app.Fragment;
+import androidx.viewpager.widget.PagerAdapter;
+import androidx.viewpager.widget.ViewPager;
+
+import com.rd.PageIndicatorView;
 
 import org.wikipedia.BackPressedHandler;
 import org.wikipedia.R;
@@ -26,14 +26,12 @@ import butterknife.Unbinder;
 
 public abstract class OnboardingFragment extends Fragment implements BackPressedHandler {
     @BindView(R.id.fragment_pager) ViewPager viewPager;
-    @BindView(R.id.fragment_onboarding_skip_button) View skipButton;
+    @BindView(R.id.fragment_onboarding_skip_button) Button skipButton;
     @BindView(R.id.fragment_onboarding_forward_button) View forwardButton;
-    @BindView(R.id.fragment_onboarding_done_button) TextView doneButton;
-    @BindView(R.id.fragment_onboarding_pager_container) FrameLayout layout;
+    @BindView(R.id.view_onboarding_page_indicator) PageIndicatorView pageIndicatorView;
+    @BindView(R.id.fragment_onboarding_done_button) Button doneButton;
     private Unbinder unbinder;
     private PagerAdapter adapter;
-
-    private GradientDrawable background;
 
     public interface Callback {
         void onComplete();
@@ -43,27 +41,15 @@ public abstract class OnboardingFragment extends Fragment implements BackPressed
 
     @StringRes protected abstract int getDoneButtonText();
 
-    @DrawableRes protected abstract int getBackgroundResId();
-
-    protected ViewPager getViewPager() {
-        return viewPager;
-    }
-
-    protected GradientDrawable getBackground() {
-        return background;
-    }
-
-    @Override public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+    @Override public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
         super.onCreateView(inflater, container, savedInstanceState);
         View view = inflater.inflate(R.layout.fragment_onboarding_pager, container, false);
         unbinder = ButterKnife.bind(this, view);
-        background = (GradientDrawable) ContextCompat.getDrawable(getContext(), getBackgroundResId());
-        background.mutate();
-        layout.setBackground(background);
         adapter = getAdapter();
         viewPager.setAdapter(adapter);
         doneButton.setText(getDoneButtonText());
         updateButtonState();
+        updatePageIndicatorContentDescription();
         return view;
     }
 
@@ -83,8 +69,7 @@ public abstract class OnboardingFragment extends Fragment implements BackPressed
         return false;
     }
 
-    @OnClick({R.id.fragment_onboarding_forward_button, R.id.fragment_onboarding_done_button})
-    public void onForwardClick() {
+    @OnClick({R.id.fragment_onboarding_forward_button, R.id.fragment_onboarding_done_button}) void onForwardClick() {
         if (atLastPage()) {
             finish();
         } else {
@@ -98,10 +83,12 @@ public abstract class OnboardingFragment extends Fragment implements BackPressed
 
     @OnPageChange(R.id.fragment_pager) void onPageChange() {
         updateButtonState();
+        updatePageIndicatorContentDescription();
+        // TODO: request focus to child view to make it readable after switched page.
     }
 
 
-    protected void advancePage() {
+    void advancePage() {
         if (!isAdded()) {
             return;
         }
@@ -122,6 +109,10 @@ public abstract class OnboardingFragment extends Fragment implements BackPressed
 
     private boolean atLastPage() {
         return viewPager.getCurrentItem() == viewPager.getAdapter().getCount() - 1;
+    }
+
+    private void updatePageIndicatorContentDescription() {
+        pageIndicatorView.setContentDescription(getString(R.string.content_description_for_page_indicator, viewPager.getCurrentItem() + 1, adapter.getCount()));
     }
 
     private void updateButtonState() {

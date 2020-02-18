@@ -7,10 +7,11 @@ import android.content.Context;
 import android.content.Intent;
 import android.graphics.BitmapFactory;
 import android.os.Build;
-import android.support.annotation.DrawableRes;
-import android.support.annotation.NonNull;
-import android.support.annotation.StringRes;
-import android.support.v4.app.NotificationCompat;
+
+import androidx.annotation.DrawableRes;
+import androidx.annotation.NonNull;
+import androidx.annotation.StringRes;
+import androidx.core.app.NotificationCompat;
 
 import org.wikipedia.Constants;
 import org.wikipedia.R;
@@ -55,7 +56,7 @@ public class NotificationWithProgressBar {
 
         // Notification channel ( >= API 26 )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            CharSequence name = context.getString(getChannelName());
+            CharSequence name = context.getResources().getQuantityString(getChannelName(), total);
             String description = context.getString(getChannelDescription());
             int importance = NotificationManager.IMPORTANCE_LOW;
             NotificationChannel mChannel = new NotificationChannel(getChannelId(), name, importance);
@@ -65,10 +66,10 @@ public class NotificationWithProgressBar {
                     .createNotificationChannel(mChannel);
         }
 
-        builderIcon = Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP ? getNotificationIcon() : R.mipmap.launcher;
-        builderTitle = String.format(context.getString(getNotificationTitle()), total);
+        builderIcon = getNotificationIcon();
+        builderTitle = String.format(context.getResources().getQuantityString(getNotificationTitle(), total), total);
         builderInfo = (int) MathUtil.percentage(progress, total) + "%";
-        builderDescription = String.format(context.getString(getNotificationDescription()), total - progress);
+        builderDescription = String.format(context.getResources().getQuantityString(getNotificationDescription(), total - progress), total - progress);
 
         builder.setSmallIcon(builderIcon)
                 .setLargeIcon(BitmapFactory.decodeResource(context.getResources(), builderIcon))
@@ -124,8 +125,7 @@ public class NotificationWithProgressBar {
                                                              @DrawableRes int buttonDrawable,
                                                              @StringRes int buttonText,
                                                              int requestCode) {
-        return new NotificationCompat.Action.Builder(Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP ? buttonDrawable : android.R.color.transparent,
-                context.getString(buttonText),
+        return new NotificationCompat.Action.Builder(buttonDrawable, context.getString(buttonText),
                 pendingIntentBuilder(context, targetClass, intentExtra, requestCode)).build();
     }
 

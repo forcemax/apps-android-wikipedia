@@ -1,90 +1,116 @@
 package org.wikipedia.feed;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.annotation.StringRes;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
 
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
+import org.wikipedia.auth.AccountUtil;
+import org.wikipedia.descriptions.DescriptionEditActivity.Action;
+import org.wikipedia.feed.accessibility.AccessibilityCardClient;
 import org.wikipedia.feed.aggregated.AggregatedFeedContentClient;
 import org.wikipedia.feed.becauseyouread.BecauseYouReadClient;
-import org.wikipedia.feed.continuereading.ContinueReadingClient;
 import org.wikipedia.feed.dataclient.FeedClient;
-import org.wikipedia.feed.mainpage.MainPageClient;
 import org.wikipedia.feed.random.RandomClient;
+import org.wikipedia.feed.suggestededits.SuggestedEditsFeedClient;
 import org.wikipedia.model.EnumCode;
 import org.wikipedia.model.EnumCodeMap;
 import org.wikipedia.settings.Prefs;
+import org.wikipedia.util.DeviceUtil;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.wikipedia.descriptions.DescriptionEditActivity.Action.ADD_CAPTION;
+import static org.wikipedia.descriptions.DescriptionEditActivity.Action.ADD_DESCRIPTION;
+import static org.wikipedia.descriptions.DescriptionEditActivity.Action.TRANSLATE_CAPTION;
+import static org.wikipedia.descriptions.DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION;
+
 public enum FeedContentType implements EnumCode {
     NEWS(0, R.string.view_card_news_title, R.string.feed_item_type_news, true) {
         @Nullable
         @Override
-        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age, boolean isOnline) {
-            return isEnabled() && age == 0 && isOnline ? new AggregatedFeedContentClient.InTheNews(aggregatedClient) : null;
+        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age) {
+            return isEnabled() && age == 0 ? new AggregatedFeedContentClient.InTheNews(aggregatedClient) : null;
         }
     },
     ON_THIS_DAY(1, R.string.on_this_day_card_title, R.string.feed_item_type_on_this_day, true) {
         @Nullable
         @Override
-        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age, boolean isOnline) {
-            return isEnabled() && isOnline ? new AggregatedFeedContentClient.OnThisDayFeed(aggregatedClient) : null;
-        }
-    },
-    CONTINUE_READING(2, R.string.view_continue_reading_card_title, R.string.feed_item_type_continue_reading, false) {
-        @Nullable
-        @Override
-        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age, boolean isOnline) {
-            return isEnabled() ? new ContinueReadingClient() : null;
+        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age) {
+            return isEnabled() ? new AggregatedFeedContentClient.OnThisDayFeed(aggregatedClient) : null;
         }
     },
     TRENDING_ARTICLES(3, R.string.most_read_list_card_title, R.string.feed_item_type_trending, true) {
         @Nullable
         @Override
-        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age, boolean isOnline) {
-            return isEnabled() && isOnline ? new AggregatedFeedContentClient.TrendingArticles(aggregatedClient) : null;
+        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age) {
+            return isEnabled() ? new AggregatedFeedContentClient.TrendingArticles(aggregatedClient) : null;
         }
     },
-    MAIN_PAGE(4, R.string.view_main_page_card_title, R.string.feed_item_type_main_page, false) {
-        @Nullable
-        @Override
-        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age, boolean isOnline) {
-            return isEnabled() && age == 0 ? new MainPageClient() : null;
-        }
-    },
+    //
+    // "4" used to be MAIN_PAGE.
+    //
     RANDOM(5, R.string.view_random_card_title, R.string.feed_item_type_randomizer, false) {
         @Nullable
         @Override
-        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age, boolean isOnline) {
+        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age) {
             return isEnabled() && age % 2 == 0 ? new RandomClient() : null;
         }
     },
     FEATURED_ARTICLE(6, R.string.view_featured_article_card_title, R.string.feed_item_type_featured_article, true) {
         @Nullable
         @Override
-        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age, boolean isOnline) {
-            return isEnabled() && isOnline ? new AggregatedFeedContentClient.FeaturedArticle(aggregatedClient) : null;
+        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age) {
+            return isEnabled() ? new AggregatedFeedContentClient.FeaturedArticle(aggregatedClient) : null;
         }
     },
     FEATURED_IMAGE(7, R.string.view_featured_image_card_title, R.string.feed_item_type_featured_image, false) {
         @Nullable
         @Override
-        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age, boolean isOnline) {
-            return isEnabled() && isOnline ? new AggregatedFeedContentClient.FeaturedImage(aggregatedClient) : null;
+        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age) {
+            return isEnabled() ? new AggregatedFeedContentClient.FeaturedImage(aggregatedClient) : null;
         }
     },
     BECAUSE_YOU_READ(8, R.string.view_because_you_read_card_title, R.string.feed_item_type_because_you_read, false) {
         @Nullable
         @Override
-        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age, boolean isOnline) {
-            return isEnabled() && isOnline ? new BecauseYouReadClient() : null;
+        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age) {
+            return isEnabled() ? new BecauseYouReadClient() : null;
+        }
+    },
+    SUGGESTED_EDITS(9, R.string.suggested_edits_feed_card_title, R.string.feed_item_type_suggested_edits, false) {
+        @Nullable
+        @Override
+        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age) {
+            if (isEnabled() && AccountUtil.isLoggedIn() && WikipediaApp.getInstance().isOnline()) {
+                List<Action> unlockedTypes = getUnlockedEditingPrivileges();
+                if (unlockedTypes.size() > 0) {
+                    return new SuggestedEditsFeedClient(unlockedTypes.get(age % unlockedTypes.size()));
+                }
+            }
+            return null;
+        }
+    },
+    ACCESSIBILITY(10, 0, 0, false, false) {
+        @Nullable
+        @Override
+        public FeedClient newClient(AggregatedFeedContentClient aggregatedClient, int age) {
+            return DeviceUtil.isAccessibilityEnabled() ? new AccessibilityCardClient() : null;
         }
     };
+
+    List<Action> getUnlockedEditingPrivileges() {
+        List<Action> unlockedTypes = new ArrayList<>();
+        unlockedTypes.add(ADD_DESCRIPTION);
+        unlockedTypes.add(TRANSLATE_DESCRIPTION);
+        unlockedTypes.add(ADD_CAPTION);
+        unlockedTypes.add(TRANSLATE_CAPTION);
+        return unlockedTypes;
+    }
 
     private static final EnumCodeMap<FeedContentType> MAP
             = new EnumCodeMap<>(FeedContentType.class);
@@ -95,6 +121,7 @@ public enum FeedContentType implements EnumCode {
     private boolean enabled = true;
 
     private boolean perLanguage;
+    private boolean showInConfig = true;
     private List<String> langCodesSupported = new ArrayList<>();
     private List<String> langCodesDisabled = new ArrayList<>();
 
@@ -104,7 +131,7 @@ public enum FeedContentType implements EnumCode {
 
     @Nullable
     public abstract FeedClient newClient(AggregatedFeedContentClient aggregatedClient,
-                                         int age, boolean isOnline);
+                                         int age);
 
     @Override public int code() {
         return code;
@@ -120,6 +147,10 @@ public enum FeedContentType implements EnumCode {
 
     public boolean isEnabled() {
         return enabled;
+    }
+
+    public boolean showInConfig() {
+        return showInConfig;
     }
 
     public void setEnabled(boolean enabled) {
@@ -152,6 +183,11 @@ public enum FeedContentType implements EnumCode {
         this.titleId = titleId;
         this.subtitleId = subtitleId;
         this.perLanguage = perLanguage;
+    }
+
+    FeedContentType(int code, @StringRes int titleId, @StringRes int subtitleId, boolean perLanguage, boolean showInConfig) {
+        this(code, titleId, subtitleId, perLanguage);
+        this.showInConfig = showInConfig;
     }
 
     public static List<String> getAggregatedLanguages() {

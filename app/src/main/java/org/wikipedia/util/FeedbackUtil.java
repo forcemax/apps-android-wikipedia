@@ -3,25 +3,30 @@ package org.wikipedia.util;
 import android.app.Activity;
 import android.content.Context;
 import android.net.Uri;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.annotation.StringRes;
-import android.support.design.widget.CoordinatorLayout;
-import android.support.design.widget.Snackbar;
-import android.support.v4.app.Fragment;
-import android.support.v4.content.ContextCompat;
+import android.text.method.LinkMovementMethod;
+import android.util.TypedValue;
 import android.view.Gravity;
+import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
+import androidx.fragment.app.Fragment;
+
 import com.getkeepsafe.taptargetview.TapTarget;
 import com.getkeepsafe.taptargetview.TapTargetView;
+import com.google.android.material.snackbar.Snackbar;
 
 import org.wikipedia.R;
+import org.wikipedia.analytics.SuggestedEditsFunnel;
 import org.wikipedia.main.MainActivity;
 import org.wikipedia.page.PageActivity;
 import org.wikipedia.random.RandomActivity;
+import org.wikipedia.readinglist.ReadingListActivity;
+import org.wikipedia.suggestededits.SuggestedEditsCardsActivity;
 
 import java.util.concurrent.TimeUnit;
 
@@ -29,9 +34,10 @@ import static org.wikipedia.util.UriUtil.visitInExternalBrowser;
 
 public final class FeedbackUtil {
     public static final int LENGTH_DEFAULT = (int) TimeUnit.SECONDS.toMillis(5);
-    private static final int SNACKBAR_MAX_LINES = 5;
+    public static final int LENGTH_LONG = (int) TimeUnit.SECONDS.toMillis(8);
+    private static final int SNACKBAR_MAX_LINES = 10;
     private static View.OnLongClickListener TOOLBAR_LONG_CLICK_LISTENER = (v) -> {
-        showToolbarButtonToast(v);
+        showToastOverView(v, v.getContentDescription(), LENGTH_DEFAULT);
         return true;
     };
 
@@ -46,11 +52,11 @@ public final class FeedbackUtil {
     }
 
     public static void showMessage(Fragment fragment, @StringRes int text) {
-        makeSnackbar(fragment.getActivity(), fragment.getString(text), Snackbar.LENGTH_LONG).show();
+        makeSnackbar(fragment.requireActivity(), fragment.getString(text), Snackbar.LENGTH_LONG).show();
     }
 
     public static void showMessage(Fragment fragment, @NonNull String text) {
-        makeSnackbar(fragment.getActivity(), text, Snackbar.LENGTH_LONG).show();
+        makeSnackbar(fragment.requireActivity(), text, Snackbar.LENGTH_LONG).show();
     }
 
     public static void showMessage(Activity activity, @StringRes int resId) {
@@ -85,6 +91,19 @@ public final class FeedbackUtil {
         visitInExternalBrowser(context, Uri.parse(context.getString(R.string.android_app_faq_url)));
     }
 
+    public static void showAndroidAppRequestAnAccount(Context context) {
+        visitInExternalBrowser(context, Uri.parse(context.getString(R.string.android_app_request_an_account_url)));
+    }
+
+    public static void showAndroidAppEditingFAQ(Context context) {
+        showAndroidAppEditingFAQ(context, R.string.android_app_edit_help_url);
+    }
+
+    public static void showAndroidAppEditingFAQ(Context context, @StringRes int urlStr) {
+        SuggestedEditsFunnel.get().helpOpened();
+        visitInExternalBrowser(context, Uri.parse(context.getString(urlStr)));
+    }
+
     public static void setToolbarButtonLongPressToast(View... views) {
         for (View v : views) {
             v.setOnLongClickListener(TOOLBAR_LONG_CLICK_LISTENER);
@@ -107,32 +126,30 @@ public final class FeedbackUtil {
     }
 
     public static Snackbar makeSnackbar(Activity activity, CharSequence text, int duration) {
+        final float snackbarLineSpacing = 5.0f;
         View view = findBestView(activity);
-        Snackbar snackbar = Snackbar.make(view, text, duration);
+        Snackbar snackbar = Snackbar.make(view, StringUtil.fromHtml(text.toString()), duration);
         TextView textView = snackbar.getView().findViewById(R.id.snackbar_text);
+        textView.setLineSpacing(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, snackbarLineSpacing, activity.getResources().getDisplayMetrics()), 1.0f);
         textView.setMaxLines(SNACKBAR_MAX_LINES);
+        textView.setMovementMethod(LinkMovementMethod.getInstance());
         TextView actionView = snackbar.getView().findViewById(R.id.snackbar_action);
-        actionView.setTextColor(ContextCompat.getColor(view.getContext(), R.color.green50));
-        adjustLayoutParamsIfRequired(snackbar, activity);
+        actionView.setTextColor(ResourceUtil.getThemedColor(view.getContext(), R.attr.color_group_52));
         return snackbar;
     }
 
-    private static void adjustLayoutParamsIfRequired(Snackbar snackbar, Activity activity) {
-        if (activity instanceof PageActivity) {
-            // TODO: move getLayoutParams() out of this logic if there has more special cases
-            CoordinatorLayout.LayoutParams params = (CoordinatorLayout.LayoutParams) snackbar.getView().getLayoutParams();
-            int tabLayoutHeight = ((PageActivity) activity).getTabLayout().getHeight();
-            params.setMargins(params.leftMargin, params.topMargin, params.rightMargin, params.bottomMargin + tabLayoutHeight);
-            snackbar.getView().setLayoutParams(params);
-        }
-    }
-
-    private static void showToolbarButtonToast(View view) {
-        Toast toast = Toast.makeText(view.getContext(), view.getContentDescription(), Toast.LENGTH_SHORT);
+    public static Toast showToastOverView(View view, CharSequence text, int duration) {
+        Toast toast = Toast.makeText(view.getContext(), text, duration);
+        View v = LayoutInflater.from(view.getContext()).inflate(R.layout.abc_tooltip, null);
+        TextView message = v.findViewById(R.id.message);
+        message.setText(text);
+        message.setMaxLines(Integer.MAX_VALUE);
+        toast.setView(v);
         int[] location = new int[2];
         view.getLocationOnScreen(location);
         toast.setGravity(Gravity.TOP | Gravity.START, location[0], location[1]);
         toast.show();
+        return toast;
     }
 
     private static View findBestView(Activity activity) {
@@ -142,6 +159,10 @@ public final class FeedbackUtil {
             return activity.findViewById(R.id.fragment_page_coordinator);
         } else if (activity instanceof RandomActivity) {
             return activity.findViewById(R.id.random_coordinator_layout);
+        } else if (activity instanceof ReadingListActivity) {
+            return activity.findViewById(R.id.fragment_reading_list_coordinator);
+        } else if (activity instanceof SuggestedEditsCardsActivity) {
+            return activity.findViewById(R.id.suggestedEditsCardsCoordinator);
         } else {
             return activity.findViewById(android.R.id.content);
         }

@@ -1,22 +1,24 @@
 package org.wikipedia.feed.model;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
 
+import androidx.annotation.NonNull;
+
+import org.wikipedia.feed.FeedContentType;
+import org.wikipedia.feed.accessibility.AccessibilityCardView;
 import org.wikipedia.feed.announcement.AnnouncementCardView;
 import org.wikipedia.feed.becauseyouread.BecauseYouReadCardView;
-import org.wikipedia.feed.continuereading.ContinueReadingCardView;
+import org.wikipedia.feed.dayheader.DayHeaderCardView;
 import org.wikipedia.feed.featured.FeaturedArticleCardView;
 import org.wikipedia.feed.image.FeaturedImageCardView;
-import org.wikipedia.feed.mainpage.MainPageCardView;
 import org.wikipedia.feed.mostread.MostReadCardView;
 import org.wikipedia.feed.news.NewsListCardView;
 import org.wikipedia.feed.offline.OfflineCardView;
-import org.wikipedia.feed.offline.OfflineCompilationCardView;
 import org.wikipedia.feed.onthisday.OnThisDayCardView;
 import org.wikipedia.feed.progress.ProgressCardView;
 import org.wikipedia.feed.random.RandomCardView;
 import org.wikipedia.feed.searchbar.SearchCardView;
+import org.wikipedia.feed.suggestededits.SuggestedEditsCardView;
 import org.wikipedia.feed.view.FeedCardView;
 import org.wikipedia.model.EnumCode;
 import org.wikipedia.model.EnumCodeMap;
@@ -27,42 +29,35 @@ public enum CardType implements EnumCode {
             return new SearchCardView(ctx);
         }
     },
-    CONTINUE_READING(1) {
-        @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
-            return new ContinueReadingCardView(ctx);
-        }
-    },
-    BECAUSE_YOU_READ_LIST(2) {
+    BECAUSE_YOU_READ_LIST(2, FeedContentType.BECAUSE_YOU_READ) {
         @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
             return new BecauseYouReadCardView(ctx);
         }
     },
-    MOST_READ_LIST(3) {
+    MOST_READ_LIST(3, FeedContentType.TRENDING_ARTICLES) {
         @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
             return new MostReadCardView(ctx);
         }
     },
-    FEATURED_ARTICLE(4) {
+    FEATURED_ARTICLE(4, FeedContentType.FEATURED_ARTICLE) {
         @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
             return new FeaturedArticleCardView(ctx);
         }
     },
-    RANDOM(5) {
+    RANDOM(5, FeedContentType.RANDOM) {
         @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
             return new RandomCardView(ctx);
         }
     },
-    MAIN_PAGE(6) {
-        @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
-            return new MainPageCardView(ctx);
-        }
-    },
-    NEWS_LIST(7) {
+    //
+    // "6" used to be MAIN_PAGE.
+    //
+    NEWS_LIST(7, FeedContentType.NEWS) {
         @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
             return new NewsListCardView(ctx);
         }
     },
-    FEATURED_IMAGE(8) {
+    FEATURED_IMAGE(8, FeedContentType.FEATURED_IMAGE) {
         @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
             return new FeaturedImageCardView(ctx);
         }
@@ -86,17 +81,13 @@ public enum CardType implements EnumCode {
             return new AnnouncementCardView(ctx);
         }
     },
-    OFFLINE_COMPILATION(16) {
-        @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
-            return new OfflineCompilationCardView(ctx);
-        }
-    },
+    //OFFLINE_COMPILATION(16)
     ONBOARDING_OFFLINE(17) {
         @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
             return new AnnouncementCardView(ctx);
         }
     },
-    ON_THIS_DAY(18) {
+    ON_THIS_DAY(18, FeedContentType.ON_THIS_DAY) {
         @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
             return new OnThisDayCardView(ctx);
         }
@@ -109,6 +100,28 @@ public enum CardType implements EnumCode {
     ONBOARDING_READING_LIST_SYNC(20) {
         @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
             return new AnnouncementCardView(ctx);
+        }
+    },
+    SUGGESTED_EDITS(21, FeedContentType.SUGGESTED_EDITS) {
+        @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
+            return new SuggestedEditsCardView(ctx);
+        }
+    },
+    ACCESSIBILITY(22, FeedContentType.ACCESSIBILITY) {
+        @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
+            return new AccessibilityCardView(ctx);
+        }
+    },
+    // TODO: refactor this item when the new Modern Event Platform is finished.
+    ARTICLE_ANNOUNCEMENT(96) {
+        @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
+            // This is not actually used, since this type of card will not be shown in the feed.
+            return new AnnouncementCardView(ctx);
+        }
+    },
+    DAY_HEADER(97) {
+        @NonNull @Override public FeedCardView<?> newView(@NonNull Context ctx) {
+            return new DayHeaderCardView(ctx);
         }
     },
     OFFLINE(98) {
@@ -124,6 +137,7 @@ public enum CardType implements EnumCode {
 
     private static final EnumCodeMap<CardType> MAP = new EnumCodeMap<>(CardType.class);
     private final int code;
+    private FeedContentType contentType;
 
     @NonNull public static CardType of(int code) {
         return MAP.get(code);
@@ -137,7 +151,16 @@ public enum CardType implements EnumCode {
         return code;
     }
 
+    public FeedContentType contentType() {
+        return contentType;
+    }
+
     CardType(int code) {
+        this(code, null);
+    }
+
+    CardType(int code, FeedContentType contentType) {
         this.code = code;
+        this.contentType = contentType;
     }
 }

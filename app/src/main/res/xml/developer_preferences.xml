@@ -1,37 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<android.support.v7.preference.PreferenceScreen
+<androidx.preference.PreferenceScreen
     xmlns:android="http://schemas.android.com/apk/res/android">
 
     <PreferenceCategory android:title="@string/preferences_developer_feature_testing_heading">
 
     </PreferenceCategory>
 
+    <PreferenceCategory android:title="@string/preferences_developer_announcements_heading">
+
+        <org.wikipedia.settings.EditTextAutoSummarizePreference
+            style="@style/EditTextAutoSummarizePreference"
+            android:key="@string/preference_key_announcement_country_override"
+            android:title="@string/preferences_developer_announcement_country_override"
+            android:dialogMessage="@string/preferences_developer_announcement_country_override_hint" />
+
+        <SwitchPreferenceCompat
+            android:key="@string/preference_key_announcement_ignore_date"
+            android:title="@string/preferences_developer_announcement_ignore_date" />
+
+        <org.wikipedia.settings.IntPreference
+            style="@style/IntPreference"
+            android:key="@string/preference_key_announcement_version_code"
+            android:title="@string/preference_key_announcement_version_code"
+            android:dialogMessage="@string/preferences_developer_announcement_version_code_hint"/>
+
+        <Preference android:key="@string/preferences_developer_announcement_reset_shown_dialogs_key"
+            android:title="@string/preferences_developer_announcement_reset_shown_dialogs_title" />
+    </PreferenceCategory>
+
     <PreferenceCategory android:title="@string/preferences_developer_restbase_heading">
-
-        <SwitchPreferenceCompat
-            android:key="@string/preference_key_use_restbase_manual"
-            android:title="@string/preference_key_use_restbase_manual" />
-
-        <SwitchPreferenceCompat
-            android:key="@string/preference_key_use_restbase"
-            android:title="@string/preference_key_use_restbase" />
-
-        <org.wikipedia.settings.IntPreference
-            style="@style/IntPreference"
-            android:key="@string/preference_key_restbase_ticket"
-            android:title="@string/preference_key_restbase_ticket" />
-
-        <org.wikipedia.settings.IntPreference
-            style="@style/IntPreference"
-            android:key="@string/preference_key_request_successes"
-            android:title="@string/preference_key_request_successes" />
 
         <org.wikipedia.settings.EditTextAutoSummarizePreference
             style="@style/DataStringPreference"
             android:key="@string/preference_key_restbase_uri_format"
             android:title="@string/preference_key_restbase_uri_format"
             android:dialogMessage="Prod: %1$s://%2$s/api/rest_v1/
-            \nLabs: http://appservice.wmflabs.org/%2$s/v1/
+            \nLabs: https://mobileapps.wmflabs.org/%2$s/v1/
             \nDev: http://host:6927/%2$s/v1/
             \n%1$s &#10139; protocol (https if omitted)
             \n%2$s &#10139; WP host" />
@@ -67,12 +71,6 @@
 
         <org.wikipedia.settings.EditTextAutoSummarizePreference
             style="@style/EditTextAutoSummarizePreference"
-            android:key="@string/preference_key_remote_log"
-            android:title="@string/preferences_developer_remote_log_title"
-            android:dialogMessage="@string/preferences_developer_remote_log_summary" />
-
-        <org.wikipedia.settings.EditTextAutoSummarizePreference
-            style="@style/EditTextAutoSummarizePreference"
             android:key="@string/preference_key_app_channel"
             android:title="@string/preference_key_app_channel" />
 
@@ -80,18 +78,19 @@
 
     <PreferenceCategory android:title="@string/preferences_developer_misc_heading">
         <SwitchPreferenceCompat
-            android:key="@string/preference_key_suppress_notification_polling"
-            android:title="@string/preference_key_suppress_notification_polling"
+            android:key="@string/preference_key_visited_article_page"
+            android:title="@string/preference_key_visited_article_page"
+            android:defaultValue="false" />
+
+        <SwitchPreferenceCompat
+            android:key="@string/preference_key_notification_show_all"
+            android:title="@string/preference_key_notification_show_all"
             android:defaultValue="false" />
 
         <org.wikipedia.settings.LongPreference
             style="@style/LongPreference"
             android:key="@string/preference_key_page_last_shown"
             android:title="@string/preference_key_page_last_shown" />
-
-        <Preference android:key="@string/preferences_developer_user_option_key"
-            android:title="@string/preferences_developer_user_option_title"
-            android:summary="@string/preferences_developer_user_option_summary" />
 
         <org.wikipedia.settings.EditTextAutoSummarizePreference
             style="@style/DataStringPreference"
@@ -120,13 +119,28 @@
 
         <org.wikipedia.settings.IntPreference
             style="@style/IntPreference"
-            android:key="@string/preference_key_zero_config_hash"
-            android:title="@string/preference_key_zero_config_hash" />
-
-        <org.wikipedia.settings.IntPreference
-            style="@style/IntPreference"
             android:key="@string/preference_key_total_anon_descriptions_edited"
             android:title="@string/preference_key_total_anon_descriptions_edited" />
+
+        <Preference
+            android:key="@string/preference_key_missing_description_test"
+            android:title="@string/preference_key_missing_description_test"
+            android:summary="Fetch a random article that has no description in the current app language." />
+
+        <Preference
+            android:key="@string/preference_key_missing_description_test2"
+            android:title="@string/preference_key_missing_description_test2"
+            android:summary="Fetch a random article that has a description in the current app language, but does *not* have a description in the *second* app language." />
+
+        <org.wikipedia.settings.EditTextAutoSummarizePreference
+            style="@style/DataStringPreference"
+            android:key="@string/preference_key_locally_known_notifications"
+            android:title="@string/preference_key_locally_known_notifications" />
+
+        <org.wikipedia.settings.EditTextAutoSummarizePreference
+            style="@style/DataStringPreference"
+            android:key="@string/preference_key_remote_notifications_seen_time"
+            android:title="@string/preference_key_remote_notifications_seen_time" />
 
         <!-- TODO: expose in wildcard preference. -->
         <org.wikipedia.settings.LongPreference
@@ -163,24 +177,12 @@
             android:title="@string/preference_key_description_edit_tutorial_enabled" />
 
         <SwitchPreferenceCompat
-            android:key="@string/preference_key_offline_onboarding_card_enabled"
-            android:title="@string/preference_key_offline_onboarding_card_enabled" />
-
-        <SwitchPreferenceCompat
-            android:key="@string/preference_key_offline_onboarding_enabled"
-            android:title="@string/preference_key_offline_onboarding_enabled" />
-
-        <SwitchPreferenceCompat
             android:key="@string/preference_key_toc_tutorial_enabled"
             android:title="@string/preference_key_toc_tutorial_enabled" />
 
         <SwitchPreferenceCompat
-            android:key="@string/preference_key_select_text_tutorial_enabled"
-            android:title="@string/preference_key_select_text_tutorial_enabled" />
-
-        <SwitchPreferenceCompat
-            android:key="@string/preference_key_share_tutorial_enabled"
-            android:title="@string/preference_key_share_tutorial_enabled" />
+            android:key="@string/preference_key_multilingual_search_tutorial_enabled"
+            android:title="@string/preference_key_multilingual_search_tutorial_enabled" />
 
         <SwitchPreferenceCompat
             android:key="@string/preference_key_reading_list_tutorial_enabled"
@@ -193,10 +195,6 @@
         <SwitchPreferenceCompat
             android:key="@string/preference_key_reading_list_login_reminder_enabled"
             android:title="@string/preference_key_reading_list_login_reminder_enabled" />
-
-        <SwitchPreferenceCompat
-            android:key="@string/preference_key_zero_tutorial_enabled"
-            android:title="@string/preference_key_zero_tutorial_enabled" />
 
         <SwitchPreferenceCompat
             android:key="@string/preference_key_feed_customize_onboarding_card_enabled"
@@ -218,6 +216,22 @@
         <SwitchPreferenceCompat
             android:key="@string/preference_key_reading_lists_first_time_sync"
             android:title="@string/preference_key_reading_lists_first_time_sync" />
+
+        <SwitchPreferenceCompat
+            android:key="@string/preference_key_show_remove_chinese_variant_prompt"
+            android:title="@string/preference_key_show_remove_chinese_variant_prompt" />
+
+        <SwitchPreferenceCompat
+            android:key="@string/preference_key_show_description_edit_success_prompt"
+            android:title="@string/preference_key_show_description_edit_success_prompt" />
+
+        <SwitchPreferenceCompat
+            android:key="@string/preference_key_suggested_edits_image_tags_new"
+            android:title="@string/preference_key_suggested_edits_image_tags_new" />
+
+        <SwitchPreferenceCompat
+            android:key="@string/preference_key_image_tags_onboarding_shown"
+            android:title="@string/preference_key_image_tags_onboarding_shown" />
 
     </PreferenceCategory>
 
@@ -246,19 +260,56 @@
             android:key="@string/preference_key_delete_test_reading_lists"
             android:title="@string/preferences_developer_test_delete_lists" />
 
+        <org.wikipedia.settings.EditTextAutoSummarizePreference
+            style="@style/EditTextAutoSummarizePreference"
+            android:dialogMessage="This number of malformed pages will be added to the default reading list:"
+            android:key="@string/preference_key_add_malformed_reading_list_page"
+            android:title="Add malformed pages to reading list" />
+
     </PreferenceCategory>
 
-    <PreferenceCategory
-        android:title="@string/preferences_developer_cookies_heading"
-        android:key="@string/preferences_developer_cookies_key">
+    <PreferenceCategory android:title="@string/preferences_developer_suggested_edits_category">
+        <SwitchPreferenceCompat
+            android:key="@string/preference_key_show_suggested_edits_survey"
+            android:title="@string/preference_key_show_suggested_edits_survey" />
 
+        <SwitchPreferenceCompat
+            android:key="@string/preference_key_show_suggested_edits_tooltip"
+            android:title="@string/preference_key_show_suggested_edits_tooltip" />
+
+        <SwitchPreferenceCompat
+            android:key="@string/preference_key_show_image_tags_tooltip"
+            android:title="@string/preference_key_show_image_tags_tooltip" />
+
+        <SwitchPreferenceCompat
+            android:key="@string/preference_key_show_edit_tasks_onboarding"
+            android:title="@string/preference_key_show_edit_tasks_onboarding" />
 
         <org.wikipedia.settings.EditTextAutoSummarizePreference
             style="@style/DataStringPreference"
-            android:key="@string/preference_key_cookie_domains"
-            android:title="@string/preference_key_cookie_domains" />
+            android:key="@string/preference_key_suggested_edits_pause_date"
+            android:title="@string/preference_key_suggested_edits_pause_date" />
 
-        <!-- dynamically added site entries -->
+        <org.wikipedia.settings.IntPreference
+            style="@style/IntPreference"
+            android:key="@string/preference_key_suggested_edits_pause_reverts"
+            android:title="@string/preference_key_suggested_edits_pause_reverts" />
+
+        <SwitchPreferenceCompat
+            android:key="@string/preference_key_suggested_edits_override_counts"
+            android:title="@string/preference_key_suggested_edits_override_counts"
+            android:summary="Use the following two fields to override suggested edit counts:"/>
+
+        <org.wikipedia.settings.IntPreference
+            style="@style/IntPreference"
+            android:key="@string/preference_key_suggested_edits_override_edits"
+            android:title="@string/preference_key_suggested_edits_override_edits" />
+
+        <org.wikipedia.settings.IntPreference
+            style="@style/IntPreference"
+            android:key="@string/preference_key_suggested_edits_override_reverts"
+            android:title="@string/preference_key_suggested_edits_override_reverts" />
 
     </PreferenceCategory>
-</android.support.v7.preference.PreferenceScreen>
+
+</androidx.preference.PreferenceScreen>

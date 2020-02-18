@@ -3,14 +3,6 @@ package org.wikipedia.feed;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
-import android.support.annotation.IntRange;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.design.widget.Snackbar;
-import android.support.v4.app.ActivityOptionsCompat;
-import android.support.v4.app.Fragment;
-import android.support.v4.widget.SwipeRefreshLayout;
-import android.support.v7.widget.RecyclerView;
 import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -18,39 +10,58 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 
+import androidx.annotation.IntRange;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AlertDialog;
+import androidx.core.app.ActivityOptionsCompat;
+import androidx.core.view.ViewCompat;
+import androidx.fragment.app.Fragment;
+import androidx.recyclerview.widget.RecyclerView;
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout;
+
+import com.google.android.material.snackbar.Snackbar;
+
 import org.wikipedia.BackPressedHandler;
-import org.wikipedia.BuildConfig;
 import org.wikipedia.Constants;
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
 import org.wikipedia.activity.FragmentUtil;
 import org.wikipedia.analytics.FeedFunnel;
+import org.wikipedia.analytics.SuggestedEditsFunnel;
+import org.wikipedia.descriptions.DescriptionEditActivity;
 import org.wikipedia.feed.configure.ConfigureActivity;
+import org.wikipedia.feed.configure.ConfigureItemLanguageDialogView;
+import org.wikipedia.feed.configure.LanguageItemAdapter;
 import org.wikipedia.feed.image.FeaturedImage;
 import org.wikipedia.feed.image.FeaturedImageCard;
 import org.wikipedia.feed.model.Card;
+import org.wikipedia.feed.model.WikiSiteCard;
 import org.wikipedia.feed.mostread.MostReadArticlesActivity;
 import org.wikipedia.feed.mostread.MostReadListCard;
 import org.wikipedia.feed.news.NewsItemCard;
 import org.wikipedia.feed.random.RandomCardView;
+import org.wikipedia.feed.suggestededits.SuggestedEditsCard;
+import org.wikipedia.feed.suggestededits.SuggestedEditsCardView;
 import org.wikipedia.feed.view.FeedAdapter;
 import org.wikipedia.feed.view.FeedView;
 import org.wikipedia.feed.view.HorizontalScrollingListCardItemView;
 import org.wikipedia.history.HistoryEntry;
-import org.wikipedia.offline.LocalCompilationsActivity;
-import org.wikipedia.offline.OfflineTutorialActivity;
+import org.wikipedia.language.LanguageSettingsInvokeSource;
+import org.wikipedia.onboarding.SuggestedEditsOnboardingActivity;
+import org.wikipedia.page.PageTitle;
 import org.wikipedia.random.RandomActivity;
-import org.wikipedia.readinglist.ReadingListSyncBehaviorDialogs;
-import org.wikipedia.readinglist.database.ReadingListDbHelper;
 import org.wikipedia.readinglist.sync.ReadingListSyncAdapter;
 import org.wikipedia.settings.Prefs;
 import org.wikipedia.settings.SettingsActivity;
-import org.wikipedia.util.DeviceUtil;
+import org.wikipedia.settings.languages.WikipediaLanguagesActivity;
 import org.wikipedia.util.FeedbackUtil;
 import org.wikipedia.util.ResourceUtil;
 import org.wikipedia.util.ThrowableUtil;
 import org.wikipedia.util.UriUtil;
-import org.wikipedia.views.ExploreOverflowView;
+
+import java.util.ArrayList;
+import java.util.List;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
@@ -58,8 +69,17 @@ import butterknife.OnClick;
 import butterknife.Unbinder;
 
 import static android.app.Activity.RESULT_OK;
+import static org.wikipedia.Constants.ACTIVITY_REQUEST_ADD_A_LANGUAGE;
+import static org.wikipedia.Constants.ACTIVITY_REQUEST_DESCRIPTION_EDIT;
 import static org.wikipedia.Constants.ACTIVITY_REQUEST_FEED_CONFIGURE;
-import static org.wikipedia.Constants.ACTIVITY_REQUEST_OFFLINE_TUTORIAL;
+import static org.wikipedia.Constants.ACTIVITY_REQUEST_SETTINGS;
+import static org.wikipedia.Constants.ACTIVITY_REQUEST_SUGGESTED_EDITS_ONBOARDING;
+import static org.wikipedia.Constants.InvokeSource.FEED;
+import static org.wikipedia.descriptions.DescriptionEditActivity.Action.ADD_DESCRIPTION;
+import static org.wikipedia.descriptions.DescriptionEditActivity.Action.TRANSLATE_CAPTION;
+import static org.wikipedia.descriptions.DescriptionEditActivity.Action.TRANSLATE_DESCRIPTION;
+import static org.wikipedia.language.AppLanguageLookUpTable.SIMPLIFIED_CHINESE_LANGUAGE_CODE;
+import static org.wikipedia.language.AppLanguageLookUpTable.TRADITIONAL_CHINESE_LANGUAGE_CODE;
 
 public class FeedFragment extends Fragment implements BackPressedHandler {
     @BindView(R.id.feed_swipe_refresh_layout) SwipeRefreshLayout swipeRefreshLayout;
@@ -73,11 +93,10 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
     private FeedFunnel funnel;
     private final FeedAdapter.Callback feedCallback = new FeedCallback();
     private FeedScrollListener feedScrollListener = new FeedScrollListener();
-    private OverflowCallback overflowCallback = new OverflowCallback();
     private boolean searchIconVisible;
+    @Nullable private SuggestedEditsCardView suggestedEditsCardView;
 
     public interface Callback {
-        void onFeedTabListRequested();
         void onFeedSearchRequested();
         void onFeedVoiceSearchRequested();
         void onFeedSelectPage(HistoryEntry entry);
@@ -90,7 +109,6 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
         void onFeedDownloadImage(FeaturedImage image);
         void onFeaturedImageSelected(FeaturedImageCard card);
         void onLoginRequested();
-        @NonNull View getOverflowMenuAnchor();
         void updateToolbarElevation(boolean elevate);
     }
 
@@ -109,7 +127,7 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
         funnel = new FeedFunnel(app);
     }
 
-    @Nullable @Override public View onCreateView(LayoutInflater inflater,
+    @Nullable @Override public View onCreateView(@NonNull LayoutInflater inflater,
                                                  @Nullable ViewGroup container,
                                                  @Nullable Bundle savedInstanceState) {
         super.onCreateView(inflater, container, savedInstanceState);
@@ -121,7 +139,7 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
         feedView.setCallback(feedCallback);
         feedView.addOnScrollListener(feedScrollListener);
 
-        swipeRefreshLayout.setColorSchemeResources(ResourceUtil.getThemedAttributeId(getContext(), R.attr.colorAccent));
+        swipeRefreshLayout.setColorSchemeResources(ResourceUtil.getThemedAttributeId(requireContext(), R.attr.colorAccent));
         swipeRefreshLayout.setOnRefreshListener(this::refresh);
 
         coordinator.setFeedUpdateListener(new FeedCoordinator.FeedUpdateListener() {
@@ -158,7 +176,7 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
             }
         });
 
-        feedHeader.setBackgroundColor(ResourceUtil.getThemedColor(getContext(), R.attr.main_toolbar_color));
+        feedHeader.setBackgroundColor(ResourceUtil.getThemedColor(requireContext(), R.attr.main_toolbar_color));
         if (getCallback() != null) {
             getCallback().updateToolbarElevation(shouldElevateToolbar());
         }
@@ -166,6 +184,21 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
         ReadingListSyncAdapter.manualSync();
 
         return view;
+    }
+
+    private void showRemoveChineseVariantPrompt() {
+        if (app.language().getAppLanguageCodes().contains(TRADITIONAL_CHINESE_LANGUAGE_CODE)
+                && app.language().getAppLanguageCodes().contains(SIMPLIFIED_CHINESE_LANGUAGE_CODE)
+                && Prefs.shouldShowRemoveChineseVariantPrompt()) {
+            new AlertDialog.Builder(requireActivity())
+                    .setTitle(R.string.dialog_of_remove_chinese_variants_from_app_lang_title)
+                    .setMessage(R.string.dialog_of_remove_chinese_variants_from_app_lang_text)
+                    .setPositiveButton(R.string.dialog_of_remove_chinese_variants_from_app_lang_edit, (dialog, which)
+                            -> showLanguagesActivity(LanguageSettingsInvokeSource.CHINESE_VARIANT_REMOVAL.text()))
+                    .setNegativeButton(R.string.dialog_of_remove_chinese_variants_from_app_lang_no, null)
+                    .show();
+        }
+        Prefs.shouldShowRemoveChineseVariantPrompt(false);
     }
 
     public boolean shouldElevateToolbar() {
@@ -181,6 +214,7 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
     @Override
     public void onResume() {
         super.onResume();
+        showRemoveChineseVariantPrompt();
         funnel.enter();
 
     }
@@ -194,29 +228,46 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
     @Override
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == ACTIVITY_REQUEST_OFFLINE_TUTORIAL && resultCode == RESULT_OK) {
-            Prefs.setOfflineTutorialCardEnabled(false);
-            Prefs.setOfflineTutorialEnabled(false);
-            refresh();
-            feedCallback.onViewCompilations();
-        } else if (requestCode == ACTIVITY_REQUEST_FEED_CONFIGURE
+        if (requestCode == ACTIVITY_REQUEST_FEED_CONFIGURE
                 && resultCode == ConfigureActivity.CONFIGURATION_CHANGED_RESULT) {
             coordinator.updateHiddenCards();
             refresh();
+        } else if ((requestCode == ACTIVITY_REQUEST_SETTINGS
+                && resultCode == SettingsActivity.ACTIVITY_RESULT_LANGUAGE_CHANGED)
+                || requestCode == ACTIVITY_REQUEST_ADD_A_LANGUAGE) {
+            refresh();
+        } else if (requestCode == ACTIVITY_REQUEST_DESCRIPTION_EDIT) {
+            SuggestedEditsFunnel.get().log();
+            SuggestedEditsFunnel.reset();
+            if (resultCode == RESULT_OK) {
+                boolean isTranslation;
+                if (suggestedEditsCardView != null) {
+                    suggestedEditsCardView.refreshCardContent();
+                    isTranslation = suggestedEditsCardView.isTranslation();
+                    if (suggestedEditsCardView.getCard() != null && !Prefs.shouldShowSuggestedEditsSurvey()) {
+                        FeedbackUtil.showMessage(this, isTranslation && app.language().getAppLanguageCodes().size() > 1
+                                ? getString(suggestedEditsCardView.getCard().getAction() == TRANSLATE_DESCRIPTION ? R.string.description_edit_success_saved_in_lang_snackbar : R.string.description_edit_success_saved_image_caption_in_lang_snackbar, app.language().getAppLanguageLocalizedName(app.language().getAppLanguageCodes().get(1)))
+                                : getString(suggestedEditsCardView.getCard().getAction() == ADD_DESCRIPTION ? R.string.description_edit_success_saved_snackbar : R.string.description_edit_success_saved_image_caption_snackbar));
+                    }
+                }
+            }
+        } else if (requestCode == ACTIVITY_REQUEST_SUGGESTED_EDITS_ONBOARDING && resultCode == RESULT_OK) {
+            startDescriptionEditScreen();
         }
     }
 
-    @Override
-    public void setUserVisibleHint(boolean visible) {
-        super.setUserVisibleHint(visible);
-        if (!isAdded()) {
+    private void startDescriptionEditScreen() {
+        if (suggestedEditsCardView == null) {
             return;
         }
-        if (visible) {
-            funnel.enter();
-        } else {
-            funnel.exit();
-        }
+        DescriptionEditActivity.Action action = suggestedEditsCardView.getCard().getAction();
+        PageTitle pageTitle = (action == TRANSLATE_DESCRIPTION || action == TRANSLATE_CAPTION)
+                ? suggestedEditsCardView.getCard().getTargetSummary().getPageTitle()
+                : suggestedEditsCardView.getCard().getSourceSummary().getPageTitle();
+        startActivityForResult(DescriptionEditActivity.newIntent(requireContext(), pageTitle, null,
+                suggestedEditsCardView.getCard().getSourceSummary(), suggestedEditsCardView.getCard().getTargetSummary(),
+                action, FEED),
+                ACTIVITY_REQUEST_DESCRIPTION_EDIT);
     }
 
     @Override
@@ -235,7 +286,7 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        app.getRefWatcher().watch(this);
+        coordinator.reset();
     }
 
     @Override
@@ -247,14 +298,8 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
     @Override
     public void onPrepareOptionsMenu(Menu menu) {
         MenuItem searchItem = menu.findItem(R.id.menu_feed_search);
-        MenuItem tabsItem = menu.findItem(R.id.menu_feed_tabs);
         if (searchItem != null) {
             searchItem.setVisible(searchIconVisible);
-        }
-        if (tabsItem != null) {
-            int tabCount = Prefs.getTabCount();
-            tabsItem.setIcon(ResourceUtil.getTabListIcon(tabCount));
-            tabsItem.setVisible(tabCount > 0);
         }
     }
 
@@ -265,18 +310,6 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
                 if (getCallback() != null) {
                     getCallback().onFeedSearchRequested();
                 }
-                return true;
-            case R.id.menu_feed_tabs:
-                if (getCallback() != null) {
-                    getCallback().onFeedTabListRequested();
-                }
-                return true;
-            case R.id.menu_overflow_button:
-                Callback callback = getCallback();
-                if (callback == null) {
-                    return false;
-                }
-                showOverflowMenu(callback.getOverflowMenuAnchor());
                 return true;
             default:
                 return super.onOptionsItemSelected(item);
@@ -297,14 +330,18 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
     }
 
     public void onGoOffline() {
-        refresh();
+        feedAdapter.notifyDataSetChanged();
+        coordinator.requestOfflineCard();
     }
 
     public void onGoOnline() {
-        refresh();
+        feedAdapter.notifyDataSetChanged();
+        coordinator.removeOfflineCard();
+        coordinator.incrementAge();
+        coordinator.more(app.getWikiSite());
     }
 
-    private void refresh() {
+    public void refresh() {
         funnel.refresh(coordinator.getAge());
         emptyContainer.setVisibility(View.GONE);
         coordinator.reset();
@@ -320,7 +357,11 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
         @Override
         public void onShowCard(@Nullable Card card) {
             if (card != null) {
-                funnel.cardShown(card.type());
+                funnel.cardShown(card.type(), getCardLanguageCode(card));
+
+                if (card instanceof SuggestedEditsCard) {
+                    ((SuggestedEditsCard) card).logImpression();
+                }
             }
         }
 
@@ -342,14 +383,14 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
 
         @Override
         public void onError(@NonNull Throwable t) {
-            FeedbackUtil.showError(getActivity(), t);
+            FeedbackUtil.showError(requireActivity(), t);
         }
 
         @Override
         public void onSelectPage(@NonNull Card card, @NonNull HistoryEntry entry) {
             if (getCallback() != null) {
                 getCallback().onFeedSelectPage(entry);
-                funnel.cardClicked(card.type());
+                funnel.cardClicked(card.type(), getCardLanguageCode(card));
             }
         }
 
@@ -357,7 +398,7 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
         public void onSelectPageFromExistingTab(@NonNull Card card, @NonNull HistoryEntry entry) {
             if (getCallback() != null) {
                 getCallback().onFeedSelectPageFromExistingTab(entry);
-                funnel.cardClicked(card.type());
+                funnel.cardClicked(card.type(), getCardLanguageCode(card));
             }
         }
 
@@ -399,9 +440,17 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
         @Override
         public boolean onRequestDismissCard(@NonNull Card card) {
             int position = coordinator.dismissCard(card);
+            if (position < 0) {
+                return false;
+            }
             funnel.dismissCard(card.type(), position);
             showDismissCardUndoSnackbar(card, position);
             return true;
+        }
+
+        @Override
+        public void onRequestEditCardLanguages(@NonNull Card card) {
+            showCardLangSelectDialog(card);
         }
 
         @Override
@@ -417,7 +466,7 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
         @Override
         public void onNewsItemSelected(@NonNull NewsItemCard card, @NonNull HorizontalScrollingListCardItemView view) {
             if (getCallback() != null) {
-                funnel.cardClicked(card.type());
+                funnel.cardClicked(card.type(), card.wikiSite().languageCode());
                 getCallback().onFeedNewsItemSelected(card, view);
             }
         }
@@ -439,27 +488,26 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
         @Override
         public void onFeaturedImageSelected(@NonNull FeaturedImageCard card) {
             if (getCallback() != null) {
-                funnel.cardClicked(card.type());
+                funnel.cardClicked(card.type(), null);
                 getCallback().onFeaturedImageSelected(card);
             }
         }
 
         @Override
         public void onAnnouncementPositiveAction(@NonNull Card card, @NonNull Uri uri) {
-            funnel.cardClicked(card.type());
-            if (uri.toString().equals(UriUtil.LOCAL_URL_OFFLINE_LIBRARY)) {
-                onViewCompilations();
-            } else if (uri.toString().equals(UriUtil.LOCAL_URL_LOGIN)) {
+            funnel.cardClicked(card.type(), getCardLanguageCode(card));
+            if (uri.toString().equals(UriUtil.LOCAL_URL_LOGIN)) {
                 if (getCallback() != null) {
                     getCallback().onLoginRequested();
                 }
             } else if (uri.toString().equals(UriUtil.LOCAL_URL_SETTINGS)) {
-                startActivityForResult(SettingsActivity.newIntent(getContext()),
-                        SettingsActivity.ACTIVITY_REQUEST_SHOW_SETTINGS);
+                startActivityForResult(SettingsActivity.newIntent(requireContext()), ACTIVITY_REQUEST_SETTINGS);
             } else if (uri.toString().equals(UriUtil.LOCAL_URL_CUSTOMIZE_FEED)) {
                 showConfigureActivity(card.type().code());
+            } else if (uri.toString().equals(UriUtil.LOCAL_URL_LANGUAGES)) {
+                showLanguagesActivity(LanguageSettingsInvokeSource.ANNOUNCEMENT.text());
             } else {
-                UriUtil.handleExternalLink(getContext(), uri);
+                UriUtil.handleExternalLink(requireContext(), uri);
             }
         }
 
@@ -470,36 +518,39 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
 
         @Override
         public void onRandomClick(@NonNull RandomCardView view) {
-            if (!DeviceUtil.isOnline()) {
+            if (!app.isOnline()) {
                 view.getRandomPage();
             } else {
                 ActivityOptionsCompat options = ActivityOptionsCompat.
-                        makeSceneTransitionAnimation(getActivity(), view, getString(R.string.transition_random_activity));
-                startActivity(RandomActivity.newIntent(getActivity(), RandomActivity.INVOKE_SOURCE_FEED), options.toBundle());
+                        makeSceneTransitionAnimation(requireActivity(), view, ViewCompat.getTransitionName(view));
+                startActivity(RandomActivity.newIntent(requireActivity(), FEED), options.toBundle());
             }
         }
 
         @Override
         public void onGetRandomError(@NonNull Throwable t, @NonNull final RandomCardView view) {
-            Snackbar snackbar = FeedbackUtil.makeSnackbar(getActivity(), ThrowableUtil.isOffline(t)
+            Snackbar snackbar = FeedbackUtil.makeSnackbar(requireActivity(), ThrowableUtil.isOffline(t)
                     ? getString(R.string.view_wiki_error_message_offline) : t.getMessage(),
                     FeedbackUtil.LENGTH_DEFAULT);
             snackbar.setAction(R.string.page_error_retry, (v) -> view.getRandomPage());
             snackbar.show();
         }
 
-        public void onViewCompilations() {
-            if (Prefs.isOfflineTutorialEnabled()) {
-                startActivityForResult(OfflineTutorialActivity.newIntent(getContext()),
-                        ACTIVITY_REQUEST_OFFLINE_TUTORIAL);
-            } else {
-                startActivity(LocalCompilationsActivity.newIntent(getContext()));
-            }
+        @Override
+        public void onMoreContentSelected(@NonNull Card card) {
+            startActivity(MostReadArticlesActivity.newIntent(requireContext(), (MostReadListCard) card));
         }
 
         @Override
-        public void onMoreContentSelected(@NonNull Card card) {
-            startActivity(MostReadArticlesActivity.newIntent(getContext(), (MostReadListCard) card));
+        public void onSuggestedEditsCardClick(@NonNull SuggestedEditsCardView view) {
+            funnel.cardClicked(view.getCard().type(), getCardLanguageCode(view.getCard()));
+            suggestedEditsCardView = view;
+            if (Prefs.showEditTaskOnboarding()) {
+                startActivityForResult(SuggestedEditsOnboardingActivity.Companion.newIntent(requireContext()),
+                        ACTIVITY_REQUEST_SUGGESTED_EDITS_ONBOARDING);
+            } else {
+                startDescriptionEditScreen();
+            }
         }
     }
 
@@ -515,7 +566,7 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
             boolean shouldShowSearchIcon = feedView.getFirstVisibleItemPosition() != 0;
             if (shouldShowSearchIcon != searchIconVisible) {
                 searchIconVisible = shouldShowSearchIcon;
-                getActivity().invalidateOptionsMenu();
+                requireActivity().invalidateOptionsMenu();
                 if (getCallback() != null) {
                     getCallback().updateToolbarElevation(shouldElevateToolbar());
                 }
@@ -524,65 +575,46 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
     }
 
     private void showDismissCardUndoSnackbar(final Card card, final int position) {
-        Snackbar snackbar = FeedbackUtil.makeSnackbar(getActivity(),
+        Snackbar snackbar = FeedbackUtil.makeSnackbar(requireActivity(),
                 getString(R.string.menu_feed_card_dismissed),
                 FeedbackUtil.LENGTH_DEFAULT);
         snackbar.setAction(R.string.feed_undo_dismiss_card, (v) -> coordinator.undoDismissCard(card, position));
         snackbar.show();
     }
 
-    private void showConfigureActivity(int invokeSource) {
-        startActivityForResult(ConfigureActivity.newIntent(getActivity(), invokeSource),
+    private void showCardLangSelectDialog(@NonNull Card card) {
+        FeedContentType contentType = card.type().contentType();
+        if (contentType.isPerLanguage()) {
+            LanguageItemAdapter adapter = new LanguageItemAdapter(requireContext(), contentType);
+            ConfigureItemLanguageDialogView view = new ConfigureItemLanguageDialogView(requireContext());
+            List<String> tempDisabledList = new ArrayList<>(contentType.getLangCodesDisabled());
+            view.setContentType(adapter.getLangList(), tempDisabledList);
+            new AlertDialog.Builder(requireContext())
+                    .setView(view)
+                    .setTitle(contentType.titleId())
+                    .setPositiveButton(R.string.feed_lang_selection_dialog_ok_button_text, (dialog, which) -> {
+                        contentType.getLangCodesDisabled().clear();
+                        contentType.getLangCodesDisabled().addAll(tempDisabledList);
+                        refresh();
+                    })
+                    .setNegativeButton(R.string.feed_lang_selection_dialog_cancel_button_text, null)
+                    .create()
+                    .show();
+        }
+    }
+
+    public void showConfigureActivity(int invokeSource) {
+        startActivityForResult(ConfigureActivity.newIntent(requireActivity(), invokeSource),
                 Constants.ACTIVITY_REQUEST_FEED_CONFIGURE);
     }
 
-    private void showOverflowMenu(@NonNull View anchor) {
-        ExploreOverflowView overflowView = new ExploreOverflowView(getContext());
-        overflowView.show(anchor, overflowCallback);
+    private void showLanguagesActivity(@NonNull String invokeSource) {
+        Intent intent = WikipediaLanguagesActivity.newIntent(requireActivity(), invokeSource);
+        startActivityForResult(intent, ACTIVITY_REQUEST_ADD_A_LANGUAGE);
     }
 
-    private class OverflowCallback implements ExploreOverflowView.Callback {
-        @Override
-        public void loginClick() {
-            if (getCallback() != null) {
-                getCallback().onLoginRequested();
-            }
-        }
-
-        @Override
-        public void settingsClick() {
-            startActivityForResult(SettingsActivity.newIntent(getContext()),
-                    SettingsActivity.ACTIVITY_REQUEST_SHOW_SETTINGS);
-        }
-
-        @Override
-        public void donateClick() {
-            UriUtil.visitInExternalBrowser(getContext(),
-                    Uri.parse(String.format(getString(R.string.donate_url),
-                            BuildConfig.VERSION_NAME,
-                            WikipediaApp.getInstance().language().getSystemLanguageCode())));
-        }
-
-        @Override
-        public void configureCardsClick() {
-            showConfigureActivity(-1);
-        }
-
-        @Override
-        public void logoutClick() {
-            WikipediaApp.getInstance().logOut();
-            FeedbackUtil.showMessage(FeedFragment.this, R.string.toast_logout_complete);
-
-            if (Prefs.isReadingListSyncEnabled() && !ReadingListDbHelper.instance().isEmpty()) {
-                ReadingListSyncBehaviorDialogs.removeExistingListsOnLogoutDialog(getActivity());
-            }
-            Prefs.setReadingListsLastSyncTime(null);
-            Prefs.setReadingListSyncEnabled(false);
-        }
-
-        @Override
-        public void compilationsClick() {
-            feedCallback.onViewCompilations();
-        }
+    @Nullable
+    public String getCardLanguageCode(@Nullable Card card) {
+        return (card instanceof WikiSiteCard) ? ((WikiSiteCard) card).wikiSite().languageCode() : null;
     }
 }

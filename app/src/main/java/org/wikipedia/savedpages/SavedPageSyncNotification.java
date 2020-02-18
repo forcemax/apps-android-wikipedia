@@ -3,7 +3,8 @@ package org.wikipedia.savedpages;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
-import android.support.annotation.NonNull;
+
+import androidx.annotation.NonNull;
 
 import org.wikipedia.Constants;
 import org.wikipedia.R;
@@ -20,11 +21,11 @@ public final class SavedPageSyncNotification extends BroadcastReceiver {
         notification = new NotificationWithProgressBar();
         notification.setChannelId(CHANNEL_ID);
         notification.setNotificationId(NOTIFICATION_ID);
-        notification.setChannelName(R.string.notification_channel_name);
+        notification.setChannelName(R.plurals.notification_channel_name);
         notification.setChannelDescription(R.string.notification_channel_description);
         notification.setNotificationIcon(android.R.drawable.stat_sys_download);
-        notification.setNotificationTitle(R.string.notification_syncing_title);
-        notification.setNotificationDescription(R.string.notification_syncing_description);
+        notification.setNotificationTitle(R.plurals.notification_syncing_title);
+        notification.setNotificationDescription(R.plurals.notification_syncing_description);
         notification.setEnableCancelButton(true);
         notification.setEnablePauseButton(true);
         notification.setTargetClass(SavedPageSyncNotification.class);

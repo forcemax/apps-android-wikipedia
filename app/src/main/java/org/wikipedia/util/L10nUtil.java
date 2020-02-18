@@ -3,17 +3,14 @@ package org.wikipedia.util;
 import android.content.Context;
 import android.content.res.Configuration;
 import android.content.res.Resources;
-import android.support.annotation.NonNull;
-import android.support.annotation.StringRes;
 import android.util.SparseArray;
 import android.view.View;
 
-import org.json.JSONException;
-import org.json.JSONObject;
+import androidx.annotation.NonNull;
+import androidx.annotation.StringRes;
+
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
-import org.wikipedia.bridge.CommunicationBridge;
-import org.wikipedia.language.LanguageUtil;
 import org.wikipedia.page.PageTitle;
 
 import java.util.Arrays;
@@ -44,8 +41,8 @@ public final class L10nUtil {
      * Ensure that this is always sorted alphabetically.
      */
     private static final String[] RTL_LANGS = {
-            "ar", "arc", "arz", "bcc", "bqi", "ckb", "dv", "fa", "glk", "he",
-            "khw", "ks", "mzn", "pnb", "ps", "sd", "ug", "ur", "yi"
+            "ar", "arc", "arz", "azb", "bcc", "bqi", "ckb", "dv", "fa", "glk", "he",
+            "khw", "ks", "lrc", "mzn", "nqo", "pnb", "ps", "sd", "ug", "ur", "yi"
     };
 
     /**
@@ -58,31 +55,6 @@ public final class L10nUtil {
         return Arrays.binarySearch(RTL_LANGS, lang, null) >= 0;
     }
 
-    /**
-     * Set up directionality for both UI and content elements in a webview.
-     *
-     * @param contentLang The Content language to use to set directionality. Wiki Language code.
-     * @param uiLocale The UI language to use to set directionality. Java language code.
-     * @param bridge The CommunicationBridge to use to communicate with the WebView
-     */
-    public static void setupDirectionality(String contentLang, Locale uiLocale, CommunicationBridge bridge) {
-        JSONObject payload = new JSONObject();
-        try {
-            if (isLangRTL(contentLang)) {
-                payload.put("contentDirection", "rtl");
-            } else {
-                payload.put("contentDirection", "ltr");
-            }
-            if (isLangRTL(LanguageUtil.localeToWikiLanguageCode(uiLocale))) {
-                payload.put("uiDirection", "rtl");
-            } else {
-                payload.put("uiDirection", "ltr");
-            }
-        } catch (JSONException e) {
-            throw new RuntimeException(e);
-        }
-        bridge.sendMessage("setDirectionality", payload);
-    }
 
     /**
      * Sets text direction (RTL / LTR) for given view based on given lang.
@@ -158,6 +130,12 @@ public final class L10nUtil {
                                                            @StringRes int[] strings) {
         Configuration config = getCurrentConfiguration();
         Locale systemLocale = ConfigurationCompat.getLocale(config);
+        if (systemLocale.getLanguage().equals(targetLocale.getLanguage())) {
+            SparseArray<String> localizedStrings = new SparseArray<>();
+            for (int stringRes : strings) {
+                localizedStrings.put(stringRes, WikipediaApp.getInstance().getString(stringRes));
+            }
+        }
         setDesiredLocale(config, targetLocale);
         SparseArray<String> localizedStrings = getTargetStrings(strings, config);
         config.setLocale(systemLocale);
@@ -193,7 +171,7 @@ public final class L10nUtil {
     /**
      * Formats provided date relative to the current system time
      * @param date Date to format
-     * @return String representing the relative time difference of the paramter from current time
+     * @return String representing the relative time difference of the parameter from current time
      */
     public static String formatDateRelative(Date date) {
         return getRelativeTimeSpanString(date.getTime(), currentTimeMillis(), SECOND_IN_MILLIS, 0).toString();

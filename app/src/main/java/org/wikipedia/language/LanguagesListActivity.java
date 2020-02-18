@@ -1,12 +1,8 @@
 package org.wikipedia.language;
 
 import android.content.Context;
+import android.content.Intent;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v7.view.ActionMode;
-import android.support.v7.widget.LinearLayoutManager;
-import android.support.v7.widget.RecyclerView;
 import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.Menu;
@@ -15,14 +11,22 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.view.ActionMode;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
 import org.apache.commons.lang3.StringUtils;
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
 import org.wikipedia.activity.BaseActivity;
+import org.wikipedia.analytics.AppLanguageSearchingFunnel;
+import org.wikipedia.dataclient.ServiceFactory;
+import org.wikipedia.dataclient.mwapi.SiteMatrix;
 import org.wikipedia.history.SearchActionModeCallback;
-import org.wikipedia.util.ResourceUtil;
+import org.wikipedia.util.log.L;
 import org.wikipedia.views.SearchEmptyView;
-import org.wikipedia.views.ViewUtil;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,9 +34,13 @@ import java.util.Locale;
 
 import butterknife.BindView;
 import butterknife.ButterKnife;
-import retrofit2.Call;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.disposables.CompositeDisposable;
+import io.reactivex.schedulers.Schedulers;
 
 import static org.apache.commons.lang3.StringUtils.defaultString;
+import static org.wikipedia.settings.languages.WikipediaLanguagesFragment.ADD_LANGUAGE_INTERACTIONS;
+import static org.wikipedia.settings.languages.WikipediaLanguagesFragment.SESSION_TOKEN;
 import static org.wikipedia.util.DeviceUtil.hideSoftKeyboard;
 
 public class LanguagesListActivity extends BaseActivity {
@@ -46,14 +54,17 @@ public class LanguagesListActivity extends BaseActivity {
     private String currentSearchQuery;
     private ActionMode actionMode;
     private SearchActionModeCallback searchActionModeCallback;
+    private AppLanguageSearchingFunnel searchingFunnel;
+    private int interactionsCount = 0;
+    private boolean isLanguageSearched;
+    public static final String LANGUAGE_SEARCHED = "language_searched";
+    private CompositeDisposable disposables = new CompositeDisposable();
 
-    private final LanguagesListActivity.SiteMatrixCallback siteMatrixCallback = new LanguagesListActivity.SiteMatrixCallback();
-    @Nullable private List<SiteMatrixClient.SiteInfo> siteInfoList;
+    @Nullable private List<SiteMatrix.SiteInfo> siteInfoList;
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        setStatusBarColor(ResourceUtil.getThemedAttributeId(this, R.attr.page_status_bar_color));
         setContentView(R.layout.activity_languages_list);
         ButterKnife.bind(this);
         app = WikipediaApp.getInstance();
@@ -67,9 +78,14 @@ public class LanguagesListActivity extends BaseActivity {
         progressBar.setVisibility(View.VISIBLE);
 
         searchActionModeCallback = new LanguagesListActivity.LanguageSearchCallback();
-        new SiteMatrixClient().request(app.getWikiSite(), siteMatrixCallback);
+        searchingFunnel = new AppLanguageSearchingFunnel(getIntent().getStringExtra(SESSION_TOKEN));
+        requestLanguages();
+    }
 
-        // TODO: add funnel?
+    @Override
+    public void onDestroy() {
+        disposables.clear();
+        super.onDestroy();
     }
 
     @Override
@@ -94,6 +110,10 @@ public class LanguagesListActivity extends BaseActivity {
     @Override
     public void onBackPressed() {
         hideSoftKeyboard(this);
+        Intent returnIntent = new Intent();
+        returnIntent.putExtra(LANGUAGE_SEARCHED, isLanguageSearched);
+        setResult(RESULT_OK, returnIntent);
+        searchingFunnel.logNoLanguageAdded(false, currentSearchQuery);
         super.onBackPressed();
     }
 
@@ -101,8 +121,11 @@ public class LanguagesListActivity extends BaseActivity {
         private LanguagesListAdapter languageAdapter = (LanguagesListAdapter) recyclerView.getAdapter();
         @Override
         public boolean onCreateActionMode(ActionMode mode, Menu menu) {
+            //currentSearchQuery is cleared here, instead of onDestroyActionMode
+            // in order to make the most recent search string available to analytics
+            currentSearchQuery = "";
+            isLanguageSearched = true;
             actionMode = mode;
-            ViewUtil.finishActionModeWhenTappingOnView(recyclerView, actionMode);
             return super.onCreateActionMode(mode, menu);
         }
 
@@ -121,9 +144,6 @@ public class LanguagesListActivity extends BaseActivity {
         @Override
         public void onDestroyActionMode(ActionMode mode) {
             super.onDestroyActionMode(mode);
-            if (!TextUtils.isEmpty(currentSearchQuery)) {
-                currentSearchQuery = "";
-            }
             emptyView.setVisibility(View.GONE);
             languageAdapter.reset();
             actionMode = null;
@@ -132,6 +152,11 @@ public class LanguagesListActivity extends BaseActivity {
         @Override
         protected String getSearchHintString() {
             return getResources().getString(R.string.search_hint_search_languages);
+        }
+
+        @Override
+        protected Context getParentContext() {
+            return LanguagesListActivity.this;
         }
     }
 
@@ -185,11 +210,14 @@ public class LanguagesListActivity extends BaseActivity {
                     String lang = languageCodes.get(pos);
                     if (!lang.equals(app.getAppOrSystemLanguageCode())) {
                         app.language().addAppLanguageCode(lang);
-
-                        // TODO: add funnel?
                     }
+                    interactionsCount++;
+                    searchingFunnel.logLanguageAdded(true, lang, currentSearchQuery);
                     hideSoftKeyboard(LanguagesListActivity.this);
-                    setResult(RESULT_OK);
+                    Intent returnIntent = new Intent();
+                    returnIntent.putExtra(ADD_LANGUAGE_INTERACTIONS, interactionsCount);
+                    returnIntent.putExtra(LANGUAGE_SEARCHED, isLanguageSearched);
+                    setResult(RESULT_OK, returnIntent);
                     finish();
                 });
             }
@@ -226,11 +254,13 @@ public class LanguagesListActivity extends BaseActivity {
             }
             this.languageCodes.add(getString(R.string.languages_list_all_text));
             this.languageCodes.addAll(getNonDuplicateLanguageCodesList());
+            // should not be able to be searched while the languages are selected
+            this.originalLanguageCodes.removeAll(app.language().getAppLanguageCodes());
             notifyDataSetChanged();
         }
 
         // To remove the already selected languages and suggested languages from all languages list
-       private List<String> getNonDuplicateLanguageCodesList() {
+        private List<String> getNonDuplicateLanguageCodesList() {
             List<String> list = new ArrayList<>(originalLanguageCodes);
             list.removeAll(app.language().getAppLanguageCodes());
             list.removeAll(suggestedLanguageCodes);
@@ -242,9 +272,10 @@ public class LanguagesListActivity extends BaseActivity {
     private String getCanonicalName(@NonNull String code) {
         String canonicalName = null;
         if (siteInfoList != null) {
-            for (SiteMatrixClient.SiteInfo info : siteInfoList) {
+            for (SiteMatrix.SiteInfo info : siteInfoList) {
                 if (code.equals(info.code())) {
                     canonicalName = info.localName();
+                    break;
                 }
             }
         }
@@ -286,7 +317,7 @@ public class LanguagesListActivity extends BaseActivity {
 
             String languageCode = languageCodes.get(position);
 
-            localizedNameTextView.setText(app.language().getAppLanguageLocalizedName(languageCode));
+            localizedNameTextView.setText(StringUtils.capitalize(app.language().getAppLanguageLocalizedName(languageCode)));
 
             String canonicalName = getCanonicalName(languageCode);
             if (progressBar.getVisibility() != View.VISIBLE) {
@@ -296,25 +327,15 @@ public class LanguagesListActivity extends BaseActivity {
         }
     }
 
-    // TODO: should remove same SiteMatrixCallback class in LanguagePreferenceDialog?
-    private class SiteMatrixCallback implements SiteMatrixClient.Callback {
-        @Override
-        public void success(@NonNull Call<SiteMatrixClient.SiteMatrix> call, @NonNull List<SiteMatrixClient.SiteInfo> sites) {
-            if (isDestroyed()) {
-                return;
-            }
-            progressBar.setVisibility(View.INVISIBLE);
-            siteInfoList = sites;
-            adapter.notifyDataSetChanged();
-        }
-
-        @Override
-        public void failure(@NonNull Call<SiteMatrixClient.SiteMatrix> call, @NonNull Throwable caught) {
-            if (isDestroyed()) {
-                return;
-            }
-            progressBar.setVisibility(View.INVISIBLE);
-            adapter.notifyDataSetChanged();
-        }
+    private void requestLanguages() {
+        disposables.add(ServiceFactory.get(app.getWikiSite()).getSiteMatrix()
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .map(SiteMatrix::getSites)
+                .doAfterTerminate(() -> {
+                    progressBar.setVisibility(View.INVISIBLE);
+                    adapter.notifyDataSetChanged();
+                })
+                .subscribe(sites -> siteInfoList = sites, L::e));
     }
 }

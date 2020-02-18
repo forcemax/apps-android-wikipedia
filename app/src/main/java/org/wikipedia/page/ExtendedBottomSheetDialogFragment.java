@@ -2,17 +2,22 @@ package org.wikipedia.page;
 
 import android.content.res.Configuration;
 import android.os.Bundle;
-import android.support.design.widget.BottomSheetDialogFragment;
 import android.view.ViewGroup;
 
+import androidx.annotation.NonNull;
+
+import com.google.android.material.bottomsheet.BottomSheetDialogFragment;
+
 import org.wikipedia.R;
-import org.wikipedia.WikipediaApp;
 import org.wikipedia.util.DimenUtil;
 
 /**
  * Descendant of BottomSheetDialogFragment that adds a few features and conveniences.
  */
 public class ExtendedBottomSheetDialogFragment extends BottomSheetDialogFragment {
+
+    private boolean enableFullWidthDialog;
+
     @Override
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -25,19 +30,17 @@ public class ExtendedBottomSheetDialogFragment extends BottomSheetDialogFragment
     }
 
     @Override
-    public void onDestroy() {
-        super.onDestroy();
-        WikipediaApp.getInstance().getRefWatcher().watch(this);
-    }
-
-    @Override
-    public void onConfigurationChanged(Configuration newConfig) {
+    public void onConfigurationChanged(@NonNull Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         setWindowLayout();
     }
 
     protected void disableBackgroundDim() {
         getDialog().getWindow().setDimAmount(0f);
+    }
+
+    protected void enableFullWidthDialog() {
+        enableFullWidthDialog = true;
     }
 
     private void setWindowLayout() {
@@ -47,7 +50,8 @@ public class ExtendedBottomSheetDialogFragment extends BottomSheetDialogFragment
     }
 
     private int dialogWidthPx() {
-        return Math.min(DimenUtil.getDisplayWidthPx(),
-                (int) getResources().getDimension(R.dimen.bottomSheetMaxWidth));
+        return enableFullWidthDialog
+                ? ViewGroup.LayoutParams.MATCH_PARENT
+                : Math.min(DimenUtil.getDisplayWidthPx(), (int) getResources().getDimension(R.dimen.bottomSheetMaxWidth));
     }
 }

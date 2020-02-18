@@ -1,26 +1,25 @@
 package org.wikipedia.settings;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.annotation.VisibleForTesting;
+import android.annotation.SuppressLint;
 import android.text.TextUtils;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import org.wikipedia.Constants;
 import org.wikipedia.WikipediaApp;
+import org.wikipedia.dataclient.ServiceFactory;
 import org.wikipedia.dataclient.WikiSite;
-import org.wikipedia.dataclient.mwapi.MwQueryResponse;
-import org.wikipedia.dataclient.retrofit.MwCachedService;
-import org.wikipedia.dataclient.retrofit.WikiCachedService;
 import org.wikipedia.staticdata.MainPageNameData;
+import org.wikipedia.util.log.L;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import retrofit2.Call;
-import retrofit2.Response;
-import retrofit2.http.GET;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.schedulers.Schedulers;
 
-public class SiteInfoClient {
+public final class SiteInfoClient {
     private static Map<String, SiteInfo> SITE_INFO_MAP = new HashMap<>();
 
     @NonNull public static String getMainPageForLang(@NonNull String lang) {
@@ -48,59 +47,18 @@ public class SiteInfoClient {
         return null;
     }
 
-    public interface Callback {
-        void success(@NonNull Call<MwQueryResponse> call, @NonNull MwQueryResponse results);
-        void failure(@NonNull Call<MwQueryResponse> call, @NonNull Throwable caught);
-    }
-
-    @NonNull private final WikiCachedService<Service> cachedService = new MwCachedService<>(Service.class);
-    @Nullable private Call<MwQueryResponse> call;
-
-    public Call<MwQueryResponse> request(@NonNull WikiSite wiki, @Nullable Callback cb) {
-        return request(cachedService.service(wiki), wiki, cb);
-    }
-
-    @VisibleForTesting
-    Call<MwQueryResponse> request(@NonNull Service service, @NonNull WikiSite site, @Nullable final Callback cb) {
-        call = service.request();
-        call.enqueue(new retrofit2.Callback<MwQueryResponse>() {
-            @Override
-            public void onResponse(@NonNull Call<MwQueryResponse> call, @NonNull Response<MwQueryResponse> response) {
-                if (response.body() != null && response.body().success() && response.body().query().siteInfo() != null) {
-                    // noinspection ConstantConditions
-                    SITE_INFO_MAP.put(site.languageCode(), response.body().query().siteInfo());
-                    if (cb != null) {
-                        cb.success(call, response.body());
-                    }
-                } else {
-                    if (cb != null) {
-                        cb.failure(call, new RuntimeException("Incorrect response format."));
-                    }
-                }
-            }
-
-            @Override
-            public void onFailure(@NonNull Call<MwQueryResponse> call, @NonNull Throwable caught) {
-                if (call.isCanceled()) {
-                    return;
-                }
-                if (cb != null) {
-                    cb.failure(call, caught);
-                }
-            }
-        });
-        return call;
-    }
-
-    void cancel() {
-        if (call != null) {
-            call.cancel();
-            call = null;
+    @SuppressLint("CheckResult")
+    public static void updateFor(@NonNull WikiSite wiki) {
+        if (SITE_INFO_MAP.containsKey(wiki.languageCode())) {
+            return;
         }
+
+        ServiceFactory.get(wiki).getSiteInfo()
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(response -> SITE_INFO_MAP.put(wiki.languageCode(), response.query().siteInfo()),
+                        L::e);
     }
 
-    @VisibleForTesting interface Service {
-        @GET("w/api.php?action=query&&format=json&formatversion=2&meta=siteinfo")
-        @NonNull Call<MwQueryResponse> request();
-    }
+    private SiteInfoClient() { }
 }

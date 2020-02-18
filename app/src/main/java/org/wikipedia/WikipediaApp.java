@@ -1,37 +1,37 @@
 package org.wikipedia;
 
-import android.app.Activity;
+import android.annotation.SuppressLint;
 import android.app.Application;
 import android.content.IntentFilter;
 import android.net.ConnectivityManager;
 import android.os.Build;
 import android.os.Handler;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.v7.app.AppCompatDelegate;
 import android.text.TextUtils;
 import android.view.Window;
 import android.webkit.WebView;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.appcompat.app.AppCompatDelegate;
+
 import com.facebook.drawee.backends.pipeline.Fresco;
 import com.facebook.imagepipeline.core.ImagePipelineConfig;
-import com.squareup.leakcanary.LeakCanary;
-import com.squareup.leakcanary.RefWatcher;
-import com.squareup.otto.Bus;
+import com.facebook.imagepipeline.nativecode.ImagePipelineNativeLoader;
+import com.microsoft.appcenter.AppCenter;
+import com.microsoft.appcenter.crashes.Crashes;
 
 import org.wikipedia.analytics.FunnelManager;
 import org.wikipedia.analytics.SessionFunnel;
 import org.wikipedia.auth.AccountUtil;
-import org.wikipedia.concurrency.ThreadSafeBus;
+import org.wikipedia.concurrency.RxBus;
 import org.wikipedia.connectivity.NetworkConnectivityReceiver;
-import org.wikipedia.crash.CrashReporter;
-import org.wikipedia.crash.hockeyapp.HockeyAppCrashReporter;
+import org.wikipedia.crash.AppCenterCrashesListener;
 import org.wikipedia.database.Database;
 import org.wikipedia.database.DatabaseClient;
+import org.wikipedia.dataclient.ServiceFactory;
 import org.wikipedia.dataclient.SharedPreferenceCookieManager;
 import org.wikipedia.dataclient.WikiSite;
 import org.wikipedia.dataclient.fresco.DisabledCache;
-import org.wikipedia.dataclient.mwapi.MwQueryResponse;
 import org.wikipedia.dataclient.okhttp.CacheableOkHttpNetworkFetcher;
 import org.wikipedia.dataclient.okhttp.OkHttpConnectionFactory;
 import org.wikipedia.edit.summaries.EditSummary;
@@ -40,8 +40,8 @@ import org.wikipedia.events.ThemeChangeEvent;
 import org.wikipedia.history.HistoryEntry;
 import org.wikipedia.language.AcceptLanguageUtil;
 import org.wikipedia.language.AppLanguageState;
-import org.wikipedia.login.UserExtendedInfoClient;
 import org.wikipedia.notifications.NotificationPollBroadcastReceiver;
+import org.wikipedia.page.tabs.Tab;
 import org.wikipedia.pageimages.PageImage;
 import org.wikipedia.search.RecentSearch;
 import org.wikipedia.settings.Prefs;
@@ -52,14 +52,20 @@ import org.wikipedia.util.DimenUtil;
 import org.wikipedia.util.ReleaseUtil;
 import org.wikipedia.util.log.L;
 import org.wikipedia.views.ViewAnimations;
-import org.wikipedia.zero.WikipediaZeroHandler;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
-import retrofit2.Call;
+import io.reactivex.android.schedulers.AndroidSchedulers;
+import io.reactivex.internal.functions.Functions;
+import io.reactivex.plugins.RxJavaPlugins;
+import io.reactivex.schedulers.Schedulers;
+import leakcanary.AppWatcher;
 
 import static org.apache.commons.lang3.StringUtils.defaultString;
 import static org.wikipedia.settings.Prefs.getTextSizeMultiplier;
@@ -68,22 +74,20 @@ import static org.wikipedia.util.ReleaseUtil.getChannel;
 
 public class WikipediaApp extends Application {
     private final RemoteConfig remoteConfig = new RemoteConfig();
-    private final Map<Class<?>, DatabaseClient<?>> databaseClients = Collections.synchronizedMap(new HashMap<Class<?>, DatabaseClient<?>>());
+    private final Map<Class<?>, DatabaseClient<?>> databaseClients = Collections.synchronizedMap(new HashMap<>());
     private Handler mainThreadHandler;
     private AppLanguageState appLanguageState;
     private FunnelManager funnelManager;
     private SessionFunnel sessionFunnel;
-    private NotificationPollBroadcastReceiver notificationReceiver = new NotificationPollBroadcastReceiver();
     private NetworkConnectivityReceiver connectivityReceiver = new NetworkConnectivityReceiver();
+    private ActivityLifecycleHandler activityLifecycleHandler = new ActivityLifecycleHandler();
     private Database database;
     private String userAgent;
     private WikiSite wiki;
-    private UserExtendedInfoClient userInfoClient = new UserExtendedInfoClient();
-    private CrashReporter crashReporter;
-    private RefWatcher refWatcher;
-    private Bus bus;
+    private AppCenterCrashesListener crashListener;
+    private RxBus bus;
     private Theme currentTheme = Theme.getFallback();
-    private WikipediaZeroHandler zeroHandler;
+    private List<Tab> tabList = new ArrayList<>();
 
     private static WikipediaApp INSTANCE;
 
@@ -99,11 +103,7 @@ public class WikipediaApp extends Application {
         return sessionFunnel;
     }
 
-    public RefWatcher getRefWatcher() {
-        return refWatcher;
-    }
-
-    public Bus getBus() {
+    public RxBus getBus() {
         return bus;
     }
 
@@ -113,10 +113,6 @@ public class WikipediaApp extends Application {
 
     public FunnelManager getFunnelManager() {
         return funnelManager;
-    }
-
-    public WikipediaZeroHandler getWikipediaZeroHandler() {
-        return zeroHandler;
     }
 
     public RemoteConfig getRemoteConfig() {
@@ -150,48 +146,68 @@ public class WikipediaApp extends Application {
     public void onCreate() {
         super.onCreate();
 
-        zeroHandler = new WikipediaZeroHandler(this);
+        WikiSite.setDefaultBaseUrl(Prefs.getMediaWikiBaseUrl());
 
-        // HockeyApp exception handling interferes with the test runner, so enable it only for
-        // beta and stable releases
-        if (!ReleaseUtil.isPreBetaRelease()) {
-            // initExceptionHandling();
+        // Register here rather than in AndroidManifest.xml so that we can target Android N.
+        // https://developer.android.com/topic/performance/background-optimization.html#connectivity-action
+        registerReceiver(connectivityReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
+
+        initExceptionHandling();
+
+        if (Prefs.isMemoryLeakTestEnabled()) {
+            AppWatcher.setConfig(new AppWatcher.Config.Builder(AppWatcher.getConfig())
+                    .enabled(true)
+                    .watchActivities(true)
+                    .watchFragments(true)
+                    .build());
+        } else {
+            AppWatcher.setConfig(new AppWatcher.Config.Builder(AppWatcher.getConfig()).enabled(false).build());
         }
-
-        refWatcher = Prefs.isMemoryLeakTestEnabled() ? LeakCanary.install(this) : RefWatcher.DISABLED;
 
         // See Javadocs and http://developer.android.com/tools/support-library/index.html#rev23-4-0
         AppCompatDelegate.setCompatVectorFromResourcesEnabled(true);
 
-        bus = new ThreadSafeBus();
+        // This handler will catch exceptions thrown from Observables after they are disposed,
+        // or from Observables that are (deliberately or not) missing an onError handler.
+        // TODO: consider more comprehensive handling of these errors.
+        RxJavaPlugins.setErrorHandler(Functions.emptyConsumer());
+
+        bus = new RxBus();
 
         ViewAnimations.init(getResources());
-        currentTheme = unmarshalCurrentTheme();
+        currentTheme = unmarshalTheme(Prefs.getCurrentThemeId());
 
         appLanguageState = new AppLanguageState(this);
+        updateCrashReportProps();
+
         funnelManager = new FunnelManager(this);
         sessionFunnel = new SessionFunnel(this);
         database = new Database(this);
 
+        initTabs();
+
         enableWebViewDebugging();
 
-        ImagePipelineConfig config = ImagePipelineConfig.newBuilder(this)
+        ImagePipelineConfig.Builder config = ImagePipelineConfig.newBuilder(this)
                 .setNetworkFetcher(new CacheableOkHttpNetworkFetcher(OkHttpConnectionFactory.getClient()))
-                .setFileCacheFactory(DisabledCache.factory())
-                .build();
+                .setFileCacheFactory(DisabledCache.factory());
         try {
-            Fresco.initialize(this, config);
+            Fresco.initialize(this, config.build());
+            ImagePipelineNativeLoader.load();
+        } catch (UnsatisfiedLinkError e) {
+            L.e(e);
+            Fresco.shutDown();
+            config.experiment().setNativeCodeDisabled(true);
+            Fresco.initialize(this, config.build());
         } catch (Exception e) {
             L.e(e);
             // TODO: Remove when we're able to initialize Fresco in test builds.
         }
 
-        // TODO: Remove when user accounts have been migrated to AccountManager (June 2018)
-        AccountUtil.migrateAccountFromSharedPrefs();
+        registerActivityLifecycleCallbacks(activityLifecycleHandler);
 
-        registerConnectivityReceiver();
-
-        listenForNotifications();
+        // Kick the notification receiver, in case it hasn't yet been started by the system.
+        NotificationPollBroadcastReceiver.startPollTask(this);
     }
 
     public int getVersionCode() {
@@ -205,10 +221,12 @@ public class WikipediaApp extends Application {
         if (userAgent == null) {
             String channel = getChannel(this);
             channel = channel.equals("") ? channel : " ".concat(channel);
-            userAgent = String.format("WikipediaApp/%s (Android %s; %s)%s",
+            userAgent = String.format("WikipediaApp/%s (Android %s; %s; %s Build/%s)%s",
                     BuildConfig.VERSION_NAME,
                     Build.VERSION.RELEASE,
                     getString(R.string.device_type),
+                    Build.MODEL,
+                    Build.ID,
                     channel
             );
         }
@@ -231,13 +249,15 @@ public class WikipediaApp extends Application {
      * Default wiki for the app
      * You should use PageTitle.getWikiSite() to get the article wiki
      */
-    @NonNull public WikiSite getWikiSite() {
+    @NonNull public synchronized WikiSite getWikiSite() {
         // TODO: why don't we ensure that the app language hasn't changed here instead of the client?
         if (wiki == null) {
             String lang = Prefs.getMediaWikiBaseUriSupportsLangCode() ? getAppOrSystemLanguageCode() : "";
-            wiki = WikiSite.forLanguageCode(lang);
+            WikiSite newWiki = WikiSite.forLanguageCode(lang);
             // Kick off a task to retrieve the site info for the current wiki
-            new SiteInfoClient().request(wiki, null);
+            SiteInfoClient.updateFor(newWiki);
+            wiki = newWiki;
+            return newWiki;
         }
         return wiki;
     }
@@ -283,7 +303,7 @@ public class WikipediaApp extends Application {
     public void setCurrentTheme(@NonNull Theme theme) {
         if (theme != currentTheme) {
             currentTheme = theme;
-            Prefs.setThemeId(currentTheme.getMarshallingId());
+            Prefs.setCurrentThemeId(currentTheme.getMarshallingId());
             bus.post(new ThemeChangeEvent());
         }
     }
@@ -306,14 +326,12 @@ public class WikipediaApp extends Application {
 
     public void putCrashReportProperty(String key, String value) {
         if (!ReleaseUtil.isPreBetaRelease()) {
-            crashReporter.putReportProperty(key, value);
+            crashListener.putReportProperty(key, value);
         }
     }
 
-    public void checkCrashes(@NonNull Activity activity) {
-        if (!ReleaseUtil.isPreBetaRelease()) {
-            crashReporter.checkCrashes(activity);
-        }
+    public void logCrashManually(@NonNull Throwable throwable) {
+        crashListener.logCrashManually(throwable);
     }
 
     public Handler getMainThreadHandler() {
@@ -321,6 +339,30 @@ public class WikipediaApp extends Application {
             mainThreadHandler = new Handler(getMainLooper());
         }
         return mainThreadHandler;
+    }
+
+    public List<Tab> getTabList() {
+        return tabList;
+    }
+
+    public void commitTabState() {
+        if (tabList.isEmpty()) {
+            Prefs.clearTabs();
+            initTabs();
+        } else {
+            Prefs.setTabs(tabList);
+        }
+    }
+
+    public int getTabCount() {
+        // handle the case where we have a single tab with an empty backstack,
+        // which shouldn't count as a valid tab:
+        return tabList.size() > 1 ? tabList.size()
+                : tabList.isEmpty() ? 0 : tabList.get(0).getBackStack().isEmpty() ? 0 : tabList.size();
+    }
+
+    public boolean isOnline() {
+        return connectivityReceiver.isOnline();
     }
 
     /**
@@ -335,31 +377,41 @@ public class WikipediaApp extends Application {
                 * DimenUtil.getFloat(R.dimen.textSizeMultiplierFactor));
     }
 
-    public void resetWikiSite() {
+    public synchronized void resetWikiSite() {
         wiki = null;
+        updateCrashReportProps();
     }
 
+    @SuppressLint("CheckResult")
     public void logOut() {
-        L.v("logging out");
+        L.d("Logging out");
         AccountUtil.removeAccount();
-        SharedPreferenceCookieManager.getInstance().clearAllCookies();
-    }
-
-    public void listenForNotifications() {
-        if (!Prefs.suppressNotificationPolling()) {
-            notificationReceiver.startPollTask(this);
-        }
+        ServiceFactory.get(getWikiSite()).getCsrfToken()
+                .subscribeOn(Schedulers.io())
+                .flatMap(response -> ServiceFactory.get(getWikiSite()).postLogout(response.query().csrfToken()).subscribeOn(Schedulers.io()))
+                .doFinally(() -> SharedPreferenceCookieManager.getInstance().clearAllCookies())
+                .subscribe(response -> L.d("Logout complete."), L::e);
     }
 
     private void initExceptionHandling() {
-        crashReporter = new HockeyAppCrashReporter(getString(R.string.hockeyapp_app_id), consentAccessor());
-        crashReporter.registerCrashHandler(this);
-
-        L.setRemoteLogger(crashReporter);
+        // AppCenter exception handling interferes with the test runner, so enable it only for beta and stable releases
+        if (!ReleaseUtil.isPreBetaRelease()) {
+            crashListener = new AppCenterCrashesListener();
+            Crashes.setListener(crashListener);
+            AppCenter.start(this, getString(R.string.appcenter_id), Crashes.class);
+            Crashes.setEnabled(Prefs.isCrashReportAutoUploadEnabled());
+        }
     }
 
-    private CrashReporter.AutoUploadConsentAccessor consentAccessor() {
-        return Prefs::isCrashReportAutoUploadEnabled;
+    private void updateCrashReportProps() {
+        // AppCenter exception handling interferes with the test runner, so enable it only for beta and stable releases
+        if (!ReleaseUtil.isPreBetaRelease()) {
+            putCrashReportProperty("locale", Locale.getDefault().toString());
+            if (appLanguageState != null) {
+                putCrashReportProperty("app_primary_language", appLanguageState.getAppLanguageCode());
+                putCrashReportProperty("app_languages", appLanguageState.getAppLanguageCodes().toString());
+            }
+        }
     }
 
     private void enableWebViewDebugging() {
@@ -368,41 +420,49 @@ public class WikipediaApp extends Application {
         }
     }
 
-    private Theme unmarshalCurrentTheme() {
-        int id = Prefs.getThemeId();
-        Theme result = Theme.ofMarshallingId(id);
+    public Theme unmarshalTheme(int themeId) {
+        Theme result = Theme.ofMarshallingId(themeId);
         if (result == null) {
-            L.d("Theme id=" + id + " is invalid, using fallback.");
+            L.d("Theme id=" + themeId + " is invalid, using fallback.");
             result = Theme.getFallback();
         }
         return result;
     }
 
-    // Register here rather than in AndroidManifest.xml so that we can target Android N.
-    // https://developer.android.com/topic/performance/background-optimization.html#connectivity-action
-    private void registerConnectivityReceiver() {
-        registerReceiver(connectivityReceiver, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
-    }
-
+    @SuppressLint("CheckResult")
     private void getUserIdForLanguage(@NonNull final String code) {
         if (!AccountUtil.isLoggedIn() || TextUtils.isEmpty(AccountUtil.getUserName())) {
             return;
         }
         final WikiSite wikiSite = WikiSite.forLanguageCode(code);
-        userInfoClient.request(wikiSite, AccountUtil.getUserName(), new UserExtendedInfoClient.Callback() {
-            @Override
-            public void success(@NonNull Call<MwQueryResponse> call, int id,
-                                @NonNull UserExtendedInfoClient.ListUserResponse user) {
-                if (AccountUtil.isLoggedIn()) {
-                    AccountUtil.putUserIdForLanguage(code, id);
-                    L.v("Found user ID " + id + " for " + code);
-                }
-            }
+        ServiceFactory.get(wikiSite).getUserInfo()
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe(response -> {
+                    if (AccountUtil.isLoggedIn() && response.query().userInfo() != null) {
+                        // noinspection ConstantConditions
+                        int id = response.query().userInfo().id();
+                        AccountUtil.putUserIdForLanguage(code, id);
+                        L.d("Found user ID " + id + " for " + code);
+                    }
+                }, caught -> L.e("Failed to get user ID for " + code, caught));
+    }
 
-            @Override
-            public void failure(@NonNull Call<MwQueryResponse> call, @NonNull Throwable caught) {
-                L.e("Failed to get user ID for " + code, caught);
-            }
-        });
+    private void initTabs() {
+        if (Prefs.hasTabs()) {
+            tabList.addAll(Prefs.getTabs());
+        }
+
+        if (tabList.isEmpty()) {
+            tabList.add(new Tab());
+        }
+    }
+
+    public boolean haveMainActivity() {
+        return activityLifecycleHandler.haveMainActivity();
+    }
+
+    public boolean isAnyActivityResumed() {
+        return activityLifecycleHandler.isAnyActivityResumed();
     }
 }

@@ -4,64 +4,83 @@ import android.annotation.SuppressLint;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.Message;
-import android.support.annotation.NonNull;
-import android.util.Log;
 import android.webkit.ConsoleMessage;
 import android.webkit.JavascriptInterface;
-import android.webkit.JsPromptResult;
+import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebView;
 
-import org.json.JSONException;
-import org.json.JSONObject;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import com.google.gson.JsonObject;
+
+import org.apache.commons.lang3.StringUtils;
+import org.wikipedia.dataclient.RestService;
+import org.wikipedia.json.GsonUtil;
+import org.wikipedia.page.PageTitle;
+import org.wikipedia.util.UriUtil;
+import org.wikipedia.util.log.L;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.wikipedia.util.UriUtil.decodeURL;
-
 /**
- * Two way communications bridge between JS in a WebView and Java.
+ * Two-way communications bridge between JS in a WebView and Java.
+ *
+ * Messages TO the WebView are sent by calling loadUrl() with the Javascript payload in it.
+ *
+ * Messages FROM the WebView are received by leveraging @JavascriptInterface methods.
+ *
  */
 public class CommunicationBridge {
-    private final WebView webView;
-
     private final Map<String, List<JSEventListener>> eventListeners;
-
-    private final BridgeMarshaller marshaller;
+    private final CommunicationBridgeListener communicationBridgeListener;
 
     private boolean isDOMReady;
     private final List<String> pendingJSMessages = new ArrayList<>();
+    private final Map<String, ValueCallback<String>> pendingEvals = new HashMap<>();
 
     public interface JSEventListener {
-        void onMessage(String messageType, JSONObject messagePayload);
+        void onMessage(String messageType, JsonObject messagePayload);
+    }
+
+    public interface CommunicationBridgeListener {
+        WebView getWebView();
+        PageTitle getPageTitle();
     }
 
     @SuppressLint({"AddJavascriptInterface", "SetJavaScriptEnabled"})
-    public CommunicationBridge(final WebView webView, final String baseURL) {
-        this.webView = webView;
-        this.marshaller = new BridgeMarshaller();
-
-        webView.getSettings().setJavaScriptEnabled(true);
-        webView.getSettings().setAllowUniversalAccessFromFileURLs(true);
-
-        webView.setWebChromeClient(new CommunicatingChrome());
-        webView.addJavascriptInterface(marshaller, "marshaller");
-
-        webView.loadUrl(baseURL); // TODO: remove once we finish the page load experiment
-
+    public CommunicationBridge(CommunicationBridgeListener communicationBridgeListener) {
+        this.communicationBridgeListener = communicationBridgeListener;
+        this.communicationBridgeListener.getWebView().getSettings().setJavaScriptEnabled(true);
+        this.communicationBridgeListener.getWebView().getSettings().setAllowUniversalAccessFromFileURLs(true);
+        this.communicationBridgeListener.getWebView().getSettings().setMediaPlaybackRequiresUserGesture(false);
+        this.communicationBridgeListener.getWebView().setWebChromeClient(new CommunicatingChrome());
+        this.communicationBridgeListener.getWebView().addJavascriptInterface(new PcsClientJavascriptInterface(), "pcsClient");
         eventListeners = new HashMap<>();
-        this.addListener("DOMLoaded", (messageType, messagePayload) -> {
-            isDOMReady = true;
-            for (String jsString : pendingJSMessages) {
-                CommunicationBridge.this.webView.loadUrl(jsString);
-            }
-        });
+    }
+
+    public void onPageFinished() {
+        isDOMReady = true;
+        flushMessages();
+    }
+
+    public void resetHtml(@NonNull String wikiUrl, @NonNull PageTitle pageTitle) {
+        isDOMReady = false;
+        pendingJSMessages.clear();
+        pendingEvals.clear();
+        communicationBridgeListener.getWebView().loadUrl(wikiUrl
+                + RestService.REST_API_PREFIX
+                + RestService.PAGE_HTML_ENDPOINT
+                + UriUtil.encodeURL(pageTitle.getPrefixedText()));
     }
 
     public void cleanup() {
+        pendingJSMessages.clear();
+        pendingEvals.clear();
         eventListeners.clear();
         if (incomingMessageHandler != null) {
             incomingMessageHandler.removeCallbacksAndMessages(null);
@@ -79,29 +98,43 @@ public class CommunicationBridge {
         }
     }
 
-    public void sendMessage(String messageName, JSONObject messageData) {
-        String messagePointer =  marshaller.putPayload(messageData.toString());
+    public void execute(@NonNull String js) {
+        String jsString = "javascript:" + js;
+        pendingJSMessages.add(jsString);
+        flushMessages();
+    }
 
-        String jsString = "javascript:handleMessage( \"" + messageName + "\", \"" + messagePointer + "\" );";
+    public void evaluate(@NonNull String js, ValueCallback<String> callback) {
+        pendingEvals.put(js, callback);
+        flushMessages();
+    }
+
+    private void flushMessages() {
         if (!isDOMReady) {
-            pendingJSMessages.add(jsString);
-        } else {
-            webView.loadUrl(jsString);
+            return;
         }
+        for (String jsString : pendingJSMessages) {
+            communicationBridgeListener.getWebView().loadUrl(jsString);
+        }
+        pendingJSMessages.clear();
+        for (String key : pendingEvals.keySet()) {
+            communicationBridgeListener.getWebView().evaluateJavascript(key, pendingEvals.get(key));
+        }
+        pendingEvals.clear();
     }
 
     private static final int MESSAGE_HANDLE_MESSAGE_FROM_JS = 1;
     private Handler incomingMessageHandler = new Handler(Looper.getMainLooper(), new Handler.Callback() {
         @Override
-        public boolean handleMessage(Message msg) {
-            JSONObject messagePack = (JSONObject) msg.obj;
-            String type = messagePack.optString("type");
-            if (!eventListeners.containsKey(type)) {
-                throw new RuntimeException("No such message type registered: " + type);
+        public boolean handleMessage(@NonNull Message msg) {
+            BridgeMessage message = (BridgeMessage) msg.obj;
+            if (!eventListeners.containsKey(message.getAction())) {
+                L.e("No such message type registered: " + message.getAction());
+                return false;
             }
-            List<JSEventListener> listeners = eventListeners.get(type);
+            List<JSEventListener> listeners = eventListeners.get(message.getAction());
             for (JSEventListener listener : listeners) {
-                listener.onMessage(type, messagePack.optJSONObject("payload"));
+                listener.onMessage(message.getAction(), message.getData());
             }
             return false;
         }
@@ -109,55 +142,45 @@ public class CommunicationBridge {
 
     private class CommunicatingChrome extends WebChromeClient {
         @Override
-        public boolean onJsPrompt(WebView view, String url, String message, String defaultValue, JsPromptResult result) {
-            try {
-                // If incomingMessageHandler is null, it means that we've been cleaned up, but we're
-                // still receiving some final messages from the WebView, so we'll just ignore them.
-                // But we should still return true and "confirm" the JsPromptResult down below.
-                if (incomingMessageHandler != null) {
-                    JSONObject messagePack = new JSONObject(decodeURL(message));
-                    Message msg = Message.obtain(incomingMessageHandler, MESSAGE_HANDLE_MESSAGE_FROM_JS, messagePack);
-                    incomingMessageHandler.sendMessage(msg);
-                }
-            } catch (JSONException e) {
-                throw new RuntimeException(e);
-            }
-            result.confirm();
-            return true;
-        }
-
-        @Override
         public boolean onConsoleMessage(@NonNull ConsoleMessage consoleMessage) {
-            Log.d("WikipediaWeb", consoleMessage.sourceId() + ":" + consoleMessage.lineNumber() + " - " + consoleMessage.message());
+            L.d(consoleMessage.sourceId() + ":" + consoleMessage.lineNumber() + " - " + consoleMessage.message());
             return true;
         }
     }
 
-    private static class BridgeMarshaller {
-        private Map<String, String> queueItems = new HashMap<>();
-        private int counter = 0;
-
+    private class PcsClientJavascriptInterface {
         /**
-         * Called from the JS via the JSBridge to get actual payload from a messagePointer.
+         * Called from Javascript to send a message packet to the Java layer. The message must be
+         * formatted in JSON, and URL-encoded.
          *
-         * Warning: This is going to be called on an indeterminable background thread, not main thread.
-         *
-         * @param pointer Key returned from #putPayload
+         * @param message JSON structured message received from the WebView.
          */
         @JavascriptInterface
-        public String getPayload(String pointer) {
-            synchronized (this) {
-                return queueItems.remove(pointer);
+        public synchronized void onReceiveMessage(String message) {
+            if (incomingMessageHandler != null) {
+                Message msg = Message.obtain(incomingMessageHandler, MESSAGE_HANDLE_MESSAGE_FROM_JS,
+                        GsonUtil.getDefaultGson().fromJson(message, BridgeMessage.class));
+                incomingMessageHandler.sendMessage(msg);
             }
         }
 
-        public String putPayload(String payload) {
-            String key = "pointerKey_" + counter;
-            counter++;
-            synchronized (this) {
-                queueItems.put(key, payload);
-            }
-            return key;
+        @JavascriptInterface
+        public synchronized String getSetupSettings() {
+            return JavaScriptActionHandler.setUp(communicationBridgeListener.getPageTitle());
+        }
+    }
+
+    @SuppressWarnings("unused")
+    private class BridgeMessage {
+        @Nullable private String action;
+        @Nullable private JsonObject data;
+
+        @NonNull public String getAction() {
+            return StringUtils.defaultString(action);
+        }
+
+        @Nullable public JsonObject getData() {
+            return data;
         }
     }
 }

@@ -3,7 +3,7 @@
    TO HAVE YOUR CHANGES OVERWRITTEN */
 package org.wikipedia.staticdata;
 
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,10 +21,10 @@ public final class MainPageNameData {
 
     @SuppressWarnings({"checkstyle:methodlength", "SpellCheckingInspection"})
     private static Map<String, String> newMap() {
-        final int size = 293;
+        final int size = 299;
         Map<String, String> map = new HashMap<>(size);
         map.put("ab", "Ихадоу адаҟьа");
-        map.put("ace", "Ôn Keuë");
+        map.put("ace", "Ôn Keue");
         map.put("ady", "НэкӀубгъо шъхьаӀ");
         map.put("af", "Tuisblad");
         map.put("ak", "Krataafa Titiriw");
@@ -43,6 +43,7 @@ public final class MainPageNameData {
         map.put("az", "Ana Səhifə");
         map.put("azb", "آنا صفحه");
         map.put("ba", "Баш бит");
+        map.put("ban", "Kaca Utama");
         map.put("bar", "Hoamseitn");
         map.put("bat-smg", "Pėrms poslapis");
         map.put("bcl", "Panginot na Pahina");
@@ -85,7 +86,7 @@ public final class MainPageNameData {
         map.put("dty", "मुख्य पन्ना");
         map.put("dv", "މައި ޞަފްޙާ");
         map.put("dz", "མ་ཤོག།");
-        map.put("ee", "Axa do Ŋgɔ");
+        map.put("ee", "Axa Gba͂tɔ");
         map.put("el", "Πύλη:Κύρια");
         map.put("eml", "PP");
         map.put("en", "Main Page");
@@ -114,6 +115,7 @@ public final class MainPageNameData {
         map.put("gn", "Ape");
         map.put("gom", "मुखेल पान");
         map.put("gor", "Halaman Bungaliyo");
+        map.put("got", "𐌰𐌽𐌰𐍃𐍄𐍉𐌳𐌴𐌹𐌽𐌹𐌻𐌰𐌿𐍆𐍃");
         map.put("gu", "મુખપૃષ્ઠ");
         map.put("gv", "Ard-ghuillag");
         map.put("ha", "Babban shafi");
@@ -127,10 +129,11 @@ public final class MainPageNameData {
         map.put("ht", "Paj Prensipal");
         map.put("hu", "Kezdőlap");
         map.put("hy", "Գլխավոր էջ");
+        map.put("hyw", "Գլխաւոր Էջ");
         map.put("ia", "Pagina principal");
         map.put("id", "Halaman Utama");
         map.put("ie", "Principal págine");
-        map.put("ig", "Ihü Mbu");
+        map.put("ig", "Ihu m̀bụ");
         map.put("ik", "Makpiġaaq Kanna");
         map.put("ilo", "Umuna a Panid");
         map.put("inh", "Керттера оагӀув");
@@ -167,14 +170,14 @@ public final class MainPageNameData {
         map.put("lb", "Haaptsäit");
         map.put("lbe", "Агьаммур лажин");
         map.put("lez", "Кьилин ччин");
-        map.put("lfn", "Paje Xef");
+        map.put("lfn", "Paje xef");
         map.put("lg", "Olupapula Olusooka");
         map.put("li", "Veurblaad");
         map.put("lij", "Pagina prinçipâ");
         map.put("lmo", "Pagina principala");
         map.put("ln", "Lokásá ya libosó");
         map.put("lo", "ໜ້າຫຼັກ");
-        map.put("lrc", "سرآسۊنٱ");
+        map.put("lrc", "سرآسونٱ");
         map.put("lt", "Pagrindinis puslapis");
         map.put("ltg", "Suoku puslopa");
         map.put("lv", "Sākumlapa");
@@ -207,6 +210,7 @@ public final class MainPageNameData {
         map.put("nn", "Hovudside");
         map.put("nb", "Portal:Forside");
         map.put("nov", "Chefi pagine");
+        map.put("nqo", "ߓߏ߬ߟߏ߲߬ߘߊ");
         map.put("nrm", "Page dé garde");
         map.put("nso", "Letlakala la pele");
         map.put("nv", "Íiyisíí Naaltsoos");
@@ -243,6 +247,7 @@ public final class MainPageNameData {
         map.put("rw", "Intangiriro");
         map.put("sa", "मुख्यपृष्ठम्");
         map.put("sah", "Сүрүн сирэй");
+        map.put("sat", "ᱢᱩᱬᱩᱛ ᱥᱟᱦᱴᱟ");
         map.put("sc", "Pàgina printzipale");
         map.put("scn", "Pàggina principali");
         map.put("sco", "Main Page");
@@ -250,6 +255,7 @@ public final class MainPageNameData {
         map.put("se", "Portála:Ovdasiidu");
         map.put("sg", "Gä nzönî");
         map.put("sh", "Glavna stranica");
+        map.put("shn", "ၼႃႈႁူဝ်ႁႅၵ်ႈ");
         map.put("si", "මුල් පිටුව");
         map.put("simple", "Main Page");
         map.put("sk", "Hlavná stránka");

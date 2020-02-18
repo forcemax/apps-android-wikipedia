@@ -1,7 +1,8 @@
 package org.wikipedia.readinglist.sync;
 
 import android.content.Context;
-import android.support.annotation.NonNull;
+
+import androidx.annotation.NonNull;
 
 import org.wikipedia.R;
 import org.wikipedia.views.NotificationWithProgressBar;
@@ -13,15 +14,15 @@ public final class ReadingListSyncNotification {
     private static final int NOTIFICATION_ID = 1002;
     private NotificationWithProgressBar notification;
 
-    public ReadingListSyncNotification() {
+    private ReadingListSyncNotification() {
         notification = new NotificationWithProgressBar();
         notification.setChannelId(CHANNEL_ID);
         notification.setNotificationId(NOTIFICATION_ID);
-        notification.setChannelName(R.string.notification_syncing_reading_list_channel_name);
+        notification.setChannelName(R.plurals.notification_syncing_reading_list_channel_name);
         notification.setChannelDescription(R.string.notification_syncing_reading_list_channel_description);
         notification.setNotificationIcon(android.R.drawable.ic_popup_sync);
-        notification.setNotificationTitle(R.string.notification_syncing_reading_list_title);
-        notification.setNotificationDescription(R.string.notification_syncing_reading_list_description);
+        notification.setNotificationTitle(R.plurals.notification_syncing_reading_list_title);
+        notification.setNotificationDescription(R.plurals.notification_syncing_reading_list_description);
     }
 
     public static ReadingListSyncNotification getInstance() {

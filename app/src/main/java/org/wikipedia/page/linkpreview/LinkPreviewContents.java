@@ -1,14 +1,16 @@
 package org.wikipedia.page.linkpreview;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.text.Html;
 import android.text.TextUtils;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import org.wikipedia.R;
+import org.wikipedia.WikipediaApp;
 import org.wikipedia.dataclient.WikiSite;
 import org.wikipedia.dataclient.page.PageSummary;
-import org.wikipedia.dataclient.restbase.page.RbPageSummary;
 import org.wikipedia.page.PageTitle;
+import org.wikipedia.util.StringUtil;
 
 import java.text.BreakIterator;
 import java.util.ArrayList;
@@ -20,6 +22,7 @@ public class LinkPreviewContents {
 
     private final PageTitle title;
     private final CharSequence extract;
+    private final boolean disambiguation;
 
     public PageTitle getTitle() {
         return title;
@@ -29,13 +32,23 @@ public class LinkPreviewContents {
         return extract;
     }
 
+    public boolean isDisambiguation() {
+        return disambiguation;
+    }
+
     LinkPreviewContents(@NonNull PageSummary pageSummary, @NonNull WikiSite wiki) {
-        title = new PageTitle(pageSummary.getTitle(), wiki);
-        if (pageSummary instanceof RbPageSummary) {
-            extract = Html.fromHtml(pageSummary.getExtractHtml());
+        title = new PageTitle(pageSummary.getApiTitle(), wiki);
+        disambiguation = pageSummary.getType().equals(PageSummary.TYPE_DISAMBIGUATION);
+        String extractStr;
+        if (pageSummary instanceof PageSummary) {
+            extractStr = pageSummary.getExtractHtml();
         } else {
-            extract = createLegacyExtractText(pageSummary, title.getWikiSite());
+            extractStr = createLegacyExtractText(pageSummary, title.getWikiSite());
         }
+        if (disambiguation) {
+            extractStr = "<p>" + WikipediaApp.getInstance().getString(R.string.link_preview_disambiguation_description) + "</p>" + extractStr;
+        }
+        extract = StringUtil.fromHtml(extractStr);
         title.setThumbUrl(pageSummary.getThumbnailUrl());
     }
 
@@ -84,7 +97,7 @@ public class LinkPreviewContents {
         }
         // fill in the rest of the string
         if (i + 1 < text.length()) {
-            outStr.append(text.substring(i + 1, text.length()));
+            outStr.append(text.substring(i + 1));
         }
         // if we had an imbalance of parentheses, then return the original string,
         // instead of the transformed one.

@@ -15,10 +15,16 @@ public class SessionData {
     private int pagesFromExternal;
     private int pagesFromHistory;
     private int pagesFromReadingList;
-    private int pagesFromNearby;
     private int pagesFromDisambig;
     private int pagesFromBack;
     private int pagesWithNoDescription;
+    private int pagesFromSuggestedEdits;
+
+    public SessionData() {
+        long now = System.currentTimeMillis();
+        startTime = now;
+        lastTouchTime = now;
+    }
 
     public void addPageViewed(HistoryEntry entry) {
         switch (entry.getSource()) {
@@ -40,11 +46,11 @@ public class SessionData {
             case HistoryEntry.SOURCE_READING_LIST:
                 pagesFromReadingList++;
                 break;
-            case HistoryEntry.SOURCE_NEARBY:
-                pagesFromNearby++;
-                break;
             case HistoryEntry.SOURCE_DISAMBIG:
                 pagesFromDisambig++;
+                break;
+            case HistoryEntry.SOURCE_SUGGESTED_EDITS:
+                pagesFromSuggestedEdits++;
                 break;
             default:
                 pagesFromInternal++;
@@ -111,10 +117,6 @@ public class SessionData {
         return pagesFromReadingList;
     }
 
-    public int getPagesFromNearby() {
-        return pagesFromNearby;
-    }
-
     public int getPagesFromDisambig() {
         return pagesFromDisambig;
     }
@@ -127,6 +129,10 @@ public class SessionData {
         return pagesWithNoDescription;
     }
 
+    public int getPagesFromSuggestedEdits() {
+        return pagesFromSuggestedEdits;
+    }
+
     public void addPageFromBack() {
         pagesFromBack++;
     }
@@ -137,7 +143,7 @@ public class SessionData {
 
     public int getTotalPages() {
         return pagesFromSearch + pagesFromRandom + pagesFromLangLink + pagesFromInternal
-                + pagesFromExternal + pagesFromHistory + pagesFromReadingList + pagesFromNearby
-                + pagesFromDisambig;
+                + pagesFromExternal + pagesFromHistory + pagesFromReadingList
+                + pagesFromDisambig + pagesFromSuggestedEdits;
     }
 }

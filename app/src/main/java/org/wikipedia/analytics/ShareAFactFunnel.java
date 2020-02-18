@@ -1,16 +1,15 @@
 package org.wikipedia.analytics;
 
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import org.json.JSONObject;
 import org.wikipedia.WikipediaApp;
 import org.wikipedia.page.PageTitle;
-import org.wikipedia.settings.Prefs;
 
 // https://meta.wikimedia.org/wiki/Schema:MobileWikiAppShareAFact
 public class ShareAFactFunnel extends Funnel {
     private static final String SCHEMA_NAME = "MobileWikiAppShareAFact";
-    private static final int REV_ID = 17837019;
+    private static final int REV_ID = 18144594;
 
     /**
      * The length value of 99 is somewhat arbitrary right now. We need to restrict the
@@ -31,8 +30,8 @@ public class ShareAFactFunnel extends Funnel {
 
     @Override
     protected JSONObject preprocessData(@NonNull JSONObject eventData) {
-        preprocessData(eventData, "tutorialFeatureEnabled", true);
-        preprocessData(eventData, "tutorialShown", calculateTutorialsShown());
+        preprocessData(eventData, "tutorial_feature_enabled", true);
+        preprocessData(eventData, "tutorial_shown", 0);
         return super.preprocessData(eventData);
     }
 
@@ -43,10 +42,10 @@ public class ShareAFactFunnel extends Funnel {
         log(
                 "action", action,
                 "article", pageTitle,
-                "pageID", pageId,
-                "revID", revisionId,
+                "page_id", pageId,
+                "rev_id", revisionId,
                 "text", text,
-                "sharemode", shareMode
+                "share_mode", shareMode
         );
     }
 
@@ -80,9 +79,5 @@ public class ShareAFactFunnel extends Funnel {
     public enum ShareMode {
         image,
         text
-    }
-
-    private int calculateTutorialsShown() {
-        return !Prefs.isShareTutorialEnabled() ? 2 : !Prefs.isSelectTextTutorialEnabled() ? 1 : 0;
     }
 }

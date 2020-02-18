@@ -2,13 +2,14 @@ package org.wikipedia.feed.news;
 
 import android.graphics.Typeface;
 import android.net.Uri;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.text.Spanned;
 import android.text.style.StyleSpan;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import org.wikipedia.dataclient.WikiSite;
-import org.wikipedia.dataclient.restbase.page.RbPageSummary;
+import org.wikipedia.dataclient.page.PageSummary;
 import org.wikipedia.feed.model.Card;
 import org.wikipedia.feed.model.CardType;
 import org.wikipedia.richtext.RichTextUtil;
@@ -46,7 +47,7 @@ public class NewsItemCard extends Card {
         return removeImageCaption(StringUtil.fromHtml(newsItem.story()));
     }
 
-    @NonNull public List<RbPageSummary> links() {
+    @NonNull public List<PageSummary> links() {
         return newsItem.links();
     }
 

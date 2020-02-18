@@ -3,9 +3,10 @@ package org.wikipedia.readinglist.database;
 import android.content.ContentValues;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.text.TextUtils;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
@@ -102,6 +103,11 @@ public class ReadingListDbHelper {
         updateLists(db, Collections.singletonList(list), queueForSync);
     }
 
+    public void updateLists(@NonNull List<ReadingList> lists, boolean queueForSync) {
+        SQLiteDatabase db = getWritableDatabase();
+        updateLists(db, lists, queueForSync);
+    }
+
     void updateList(@NonNull SQLiteDatabase db, @NonNull ReadingList list, boolean queueForSync) {
         updateLists(db, Collections.singletonList(list), queueForSync);
     }
@@ -165,6 +171,29 @@ public class ReadingListDbHelper {
         }
     }
 
+    public void addPageToLists(@NonNull List<ReadingList> lists, @NonNull ReadingListPage page, boolean queueForSync) {
+        SQLiteDatabase db = getWritableDatabase();
+        db.beginTransaction();
+        try {
+            for (ReadingList list : lists) {
+                if (getPageByTitle(db, list, ReadingListPage.toPageTitle(page)) != null) {
+                    continue;
+                }
+                page.status(ReadingListPage.STATUS_QUEUE_FOR_SAVE);
+                insertPageInDb(db, list, page);
+            }
+            db.setTransactionSuccessful();
+
+            WikipediaApp.getInstance().getBus().post(new ArticleSavedOrDeletedEvent(true, page));
+        } finally {
+            db.endTransaction();
+        }
+        SavedPageSyncService.enqueue();
+        if (queueForSync) {
+            ReadingListSyncAdapter.manualSync();
+        }
+    }
+
     public void addPagesToList(@NonNull ReadingList list, @NonNull List<ReadingListPage> pages, boolean queueForSync) {
         SQLiteDatabase db = getWritableDatabase();
         addPagesToList(db, list, pages);
@@ -181,7 +210,7 @@ public class ReadingListDbHelper {
             }
             db.setTransactionSuccessful();
 
-            WikipediaApp.getInstance().getBus().post(new ArticleSavedOrDeletedEvent(pages.toArray(new ReadingListPage[]{})));
+            WikipediaApp.getInstance().getBus().post(new ArticleSavedOrDeletedEvent(true, pages.toArray(new ReadingListPage[]{})));
         } finally {
             db.endTransaction();
         }
@@ -214,8 +243,7 @@ public class ReadingListDbHelper {
     private void addPageToList(SQLiteDatabase db, @NonNull ReadingList list, @NonNull PageTitle title) {
         ReadingListPage protoPage = new ReadingListPage(title);
         insertPageInDb(db, list, protoPage);
-
-        WikipediaApp.getInstance().getBus().post(new ArticleSavedOrDeletedEvent(protoPage));
+        WikipediaApp.getInstance().getBus().post(new ArticleSavedOrDeletedEvent(true, protoPage));
     }
 
     public void markPagesForDeletion(@NonNull ReadingList list, @NonNull List<ReadingListPage> pages) {
@@ -235,21 +263,24 @@ public class ReadingListDbHelper {
                 ReadingListSyncAdapter.manualSyncWithDeletePages(list, pages);
             }
 
-            WikipediaApp.getInstance().getBus().post(new ArticleSavedOrDeletedEvent(pages.toArray(new ReadingListPage[]{})));
+            WikipediaApp.getInstance().getBus().post(new ArticleSavedOrDeletedEvent(false, pages.toArray(new ReadingListPage[]{})));
         } finally {
             db.endTransaction();
         }
         SavedPageSyncService.enqueue();
     }
 
-    public void markPageForOffline(@NonNull ReadingListPage page, boolean offline) {
-        if (page.offline() == offline) {
+    public void markPageForOffline(@NonNull ReadingListPage page, boolean offline, boolean forcedSave) {
+        if (page.offline() == offline && !forcedSave) {
             return;
         }
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
             page.offline(offline);
+            if (forcedSave) {
+                page.status(ReadingListPage.STATUS_QUEUE_FOR_FORCED_SAVE);
+            }
             updatePageInDb(db, page);
             db.setTransactionSuccessful();
         } finally {
@@ -258,15 +289,18 @@ public class ReadingListDbHelper {
         SavedPageSyncService.enqueue();
     }
 
-    public void markPagesForOffline(@NonNull List<ReadingListPage> pages, boolean offline) {
+    public void markPagesForOffline(@NonNull List<ReadingListPage> pages, boolean offline, boolean forcedSave) {
         SQLiteDatabase db = getWritableDatabase();
         db.beginTransaction();
         try {
             for (ReadingListPage page : pages) {
-                if (page.offline() == offline) {
+                if (page.offline() == offline && !forcedSave) {
                     continue;
                 }
                 page.offline(offline);
+                if (forcedSave) {
+                    page.status(ReadingListPage.STATUS_QUEUE_FOR_FORCED_SAVE);
+                }
                 updatePageInDb(db, page);
             }
             db.setTransactionSuccessful();
@@ -364,7 +398,22 @@ public class ReadingListDbHelper {
     }
 
     public boolean isEmpty() {
-        return getRandomPage() == null;
+        SQLiteDatabase db = getReadableDatabase();
+
+        try (Cursor cursor = db.query(ReadingListPageContract.TABLE, null,
+                ReadingListPageContract.Col.STATUS.getName() + " != ?",
+                new String[]{Integer.toString(ReadingListPage.STATUS_QUEUE_FOR_DELETE)},
+                null, null, null)) {
+            if (cursor.moveToFirst()) {
+                return false;
+            }
+        }
+
+        try (Cursor cursor = db.query(ReadingListContract.TABLE, null,
+                ReadingListContract.Col.TITLE.getName() + " != ?", new String[]{""},
+                null, null, null)) {
+            return !cursor.moveToFirst();
+        }
     }
 
     @Nullable
@@ -389,10 +438,11 @@ public class ReadingListDbHelper {
                 ReadingListPageContract.Col.SITE.getName() + " = ? AND "
                         + ReadingListPageContract.Col.LANG.getName() + " = ? AND "
                         + ReadingListPageContract.Col.NAMESPACE.getName() + " = ? AND "
-                        + ReadingListPageContract.Col.TITLE.getName() + " = ? AND "
+                        + "( " + ReadingListPageContract.Col.DISPLAY_TITLE.getName() + " = ? OR "
+                        + ReadingListPageContract.Col.API_TITLE.getName() + " = ? ) AND "
                         + ReadingListPageContract.Col.STATUS.getName() + " != ?",
                 new String[]{title.getWikiSite().authority(), title.getWikiSite().languageCode(),
-                        Integer.toString(title.namespace().code()), title.getDisplayText(),
+                        Integer.toString(title.namespace().code()), title.getDisplayText(), title.getPrefixedText(),
                         Integer.toString(ReadingListPage.STATUS_QUEUE_FOR_DELETE)},
                 null, null, null)) {
             if (cursor.moveToFirst()) {
@@ -421,10 +471,11 @@ public class ReadingListDbHelper {
                 ReadingListPageContract.Col.SITE.getName() + " = ? AND "
                         + ReadingListPageContract.Col.LANG.getName() + " = ? AND "
                         + ReadingListPageContract.Col.NAMESPACE.getName() + " = ? AND "
-                        + ReadingListPageContract.Col.TITLE.getName() + " = ? AND "
+                        + "( " + ReadingListPageContract.Col.DISPLAY_TITLE.getName() + " = ? OR "
+                        + ReadingListPageContract.Col.API_TITLE.getName() + " = ? ) AND "
                         + ReadingListPageContract.Col.STATUS.getName() + " != ?",
                 new String[]{title.getWikiSite().authority(), title.getWikiSite().languageCode(),
-                        Integer.toString(title.namespace().code()), title.getDisplayText(),
+                        Integer.toString(title.namespace().code()), title.getDisplayText(), title.getPrefixedText(),
                         Integer.toString(ReadingListPage.STATUS_QUEUE_FOR_DELETE)},
                 null, null, null)) {
             while (cursor.moveToNext()) {
@@ -489,6 +540,22 @@ public class ReadingListDbHelper {
                 ReadingListPageContract.Col.STATUS.getName() + " = ? AND "
                 + ReadingListPageContract.Col.OFFLINE.getName() + " = ?",
                 new String[]{Integer.toString(ReadingListPage.STATUS_QUEUE_FOR_SAVE), Integer.toString(1)},
+                null, null, null)) {
+            while (cursor.moveToNext()) {
+                pages.add(ReadingListPage.DATABASE_TABLE.fromCursor(cursor));
+            }
+        }
+        return pages;
+    }
+
+    @NonNull
+    public List<ReadingListPage> getAllPagesToBeForcedSave() {
+        List<ReadingListPage> pages = new ArrayList<>();
+        SQLiteDatabase db = getReadableDatabase();
+        try (Cursor cursor = db.query(ReadingListPageContract.TABLE, null,
+                ReadingListPageContract.Col.STATUS.getName() + " = ? AND "
+                        + ReadingListPageContract.Col.OFFLINE.getName() + " = ?",
+                new String[]{Integer.toString(ReadingListPage.STATUS_QUEUE_FOR_FORCED_SAVE), Integer.toString(1)},
                 null, null, null)) {
             while (cursor.moveToNext()) {
                 pages.add(ReadingListPage.DATABASE_TABLE.fromCursor(cursor));
@@ -608,11 +675,12 @@ public class ReadingListDbHelper {
                 ReadingListPageContract.Col.SITE.getName() + " = ? AND "
                         + ReadingListPageContract.Col.LANG.getName() + " = ? AND "
                         + ReadingListPageContract.Col.NAMESPACE.getName() + " = ? AND "
-                        + ReadingListPageContract.Col.TITLE.getName() + " = ? AND "
+                        + "( " + ReadingListPageContract.Col.DISPLAY_TITLE.getName() + " = ? OR "
+                        + ReadingListPageContract.Col.API_TITLE.getName() + " = ? ) AND "
                         + ReadingListPageContract.Col.LISTID.getName() + " = ? AND "
                         + ReadingListPageContract.Col.STATUS.getName() + " != ?",
                 new String[]{title.getWikiSite().authority(), title.getWikiSite().languageCode(),
-                        Integer.toString(title.namespace().code()), title.getDisplayText(),
+                        Integer.toString(title.namespace().code()), title.getDisplayText(), title.getPrefixedText(),
                         Long.toString(list.id()),
                         Integer.toString(ReadingListPage.STATUS_QUEUE_FOR_DELETE)},
                 null, null, null)) {

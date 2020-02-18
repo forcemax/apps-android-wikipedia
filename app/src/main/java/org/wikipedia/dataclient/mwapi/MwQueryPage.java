@@ -1,42 +1,49 @@
 package org.wikipedia.dataclient.mwapi;
 
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.google.gson.annotations.SerializedName;
 
 import org.apache.commons.lang3.StringUtils;
 import org.wikipedia.gallery.ImageInfo;
 import org.wikipedia.gallery.VideoInfo;
-import org.wikipedia.json.annotations.Required;
 import org.wikipedia.model.BaseModel;
 import org.wikipedia.page.Namespace;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 /**
  * A class representing a standard page object as returned by the MediaWiki API.
  */
+@SuppressWarnings("unused")
 public class MwQueryPage extends BaseModel {
-    @SuppressWarnings("unused") private int pageid;
-    @SuppressWarnings("unused") private int ns;
-    @SuppressWarnings("unused") private int index;
-    @SuppressWarnings("unused,NullableProblems") @NonNull private String title;
-    @SuppressWarnings("unused") @Nullable private List<LangLink> langlinks;
-    @SuppressWarnings("unused") @Nullable private List<Revision> revisions;
-    @SuppressWarnings("unused") @Nullable private List<Coordinates> coordinates;
-    @SuppressWarnings("unused") @Nullable private PageProps pageprops;
-    @SuppressWarnings("unused") @Nullable private String extract;
-    @SuppressWarnings("unused") @Nullable private Thumbnail thumbnail;
-    @SuppressWarnings("unused") @Nullable private Terms terms;
-    @SuppressWarnings("unused") @SerializedName("imageinfo") @Nullable private List<ImageInfo> imageInfo;
-    @SuppressWarnings("unused") @SerializedName("videoinfo") @Nullable private List<VideoInfo> videoInfo;
+    private int pageid;
+    private int ns;
+    private int index;
+    @Nullable private String title;
+    @Nullable private List<LangLink> langlinks;
+    @Nullable private List<Revision> revisions;
+    @Nullable private List<Coordinates> coordinates;
+    @Nullable private List<Category> categories;
+    @Nullable private PageProps pageprops;
+    @Nullable private String extract;
+    @Nullable private Thumbnail thumbnail;
+    @Nullable private String description;
+    @SerializedName("descriptionsource") @Nullable private String descriptionSource;
+    @SerializedName("imageinfo") @Nullable private List<ImageInfo> imageInfo;
+    @SerializedName("videoinfo") @Nullable private List<VideoInfo> videoInfo;
     @Nullable private String redirectFrom;
     @Nullable private String convertedFrom;
+    @Nullable private String convertedTo;
+    @Nullable private Map<String, String> varianttitles;
+    @SerializedName("pageviews") @Nullable private Map<String, Long> pageViewsMap;
+    @SerializedName("imagelabels") @Nullable private List<ImageLabel> imageLabels;
 
     @NonNull public String title() {
-        return title;
+        return StringUtils.defaultString(title);
     }
 
     public int index() {
@@ -55,6 +62,10 @@ public class MwQueryPage extends BaseModel {
         return revisions;
     }
 
+    @Nullable public List<Category> categories() {
+        return categories;
+    }
+
     @Nullable public List<Coordinates> coordinates() {
         // TODO: Handle null values in lists during deserialization, perhaps with a new
         // @RequiredElements annotation and corresponding TypeAdapter
@@ -62,6 +73,10 @@ public class MwQueryPage extends BaseModel {
             coordinates.removeAll(Collections.singleton(null));
         }
         return coordinates;
+    }
+
+    public int pageId() {
+        return pageid;
     }
 
     @Nullable public PageProps pageProps() {
@@ -77,7 +92,12 @@ public class MwQueryPage extends BaseModel {
     }
 
     @Nullable public String description() {
-        return terms != null && terms.description() != null ? terms.description().get(0) : null;
+        return description;
+    }
+
+    @Nullable
+    public String descriptionSource() {
+        return descriptionSource;
     }
 
     @Nullable public ImageInfo imageInfo() {
@@ -104,18 +124,38 @@ public class MwQueryPage extends BaseModel {
         convertedFrom = from;
     }
 
+    @Nullable public String convertedTo() {
+        return convertedTo;
+    }
+
+    public void convertedTo(@Nullable String to) {
+        convertedTo = to;
+    }
+
     public void appendTitleFragment(@Nullable String fragment) {
         title += "#" + fragment;
     }
 
+    @NonNull public String displayTitle(@NonNull String langCode) {
+        return varianttitles != null ? StringUtils.defaultIfEmpty(varianttitles.get(langCode), title()) : title();
+    }
+
+    @NonNull public Map<String, Long> getPageViewsMap() {
+        return pageViewsMap != null ? pageViewsMap : Collections.emptyMap();
+    }
+
+    @NonNull public List<ImageLabel> getImageLabels() {
+        return imageLabels != null ? imageLabels : Collections.emptyList();
+    }
+
     public static class Revision {
-        @SuppressWarnings("unused,NullableProblems") @SerializedName("contentformat") @NonNull private String contentFormat;
-        @SuppressWarnings("unused,NullableProblems") @SerializedName("contentmodel") @NonNull private String contentModel;
-        @SuppressWarnings("unused,NullableProblems") @SerializedName("timestamp") @NonNull private String timeStamp;
-        @SuppressWarnings("unused,NullableProblems") @NonNull private String content;
+        @SerializedName("contentformat") @Nullable private String contentFormat;
+        @SerializedName("contentmodel") @Nullable private String contentModel;
+        @SerializedName("timestamp") @Nullable private String timeStamp;
+        @Nullable private String content;
 
         @NonNull public String content() {
-            return content;
+            return StringUtils.defaultString(content);
         }
 
         @NonNull public String timeStamp() {
@@ -124,61 +164,88 @@ public class MwQueryPage extends BaseModel {
     }
 
     public static class LangLink {
-        @SuppressWarnings("unused,NullableProblems") @NonNull private String lang;
+        @Nullable private String lang;
         @NonNull public String lang() {
-            return lang;
+            return StringUtils.defaultString(lang);
         }
-        @SuppressWarnings("unused,NullableProblems") @NonNull private String title;
+        @Nullable private String title;
         @NonNull public String title() {
-            return title;
+            return StringUtils.defaultString(title);
         }
     }
 
     public static class Coordinates {
-        // Use Double object type rather than primitive type so that the presence of the fields can
-        // be checked correctly by the RequiredFieldsCheckOnReadTypeAdapter.
-        @SuppressWarnings("unused") @Required @NonNull private Double lat;
-        @SuppressWarnings("unused") @Required @NonNull private Double lon;
+        @Nullable private Double lat;
+        @Nullable private Double lon;
 
-        public Coordinates(double lat, double lon) {
-            this.lat = lat;
-            this.lon = lon;
-        }
-
-        public double lat() {
+        @Nullable public Double lat() {
             return lat;
         }
-        public double lon() {
+        @Nullable public Double lon() {
             return lon;
         }
     }
 
-    static class Terms {
-        @SuppressWarnings("unused") private List<String> description;
-        List<String> description() {
-            return description;
-        }
-    }
-
     static class Thumbnail {
-        @SuppressWarnings("unused") private String source;
-        @SuppressWarnings("unused") private int width;
-        @SuppressWarnings("unused") private int height;
+        private String source;
+        private int width;
+        private int height;
         String source() {
             return source;
         }
     }
 
     public static class PageProps {
-        @SuppressWarnings("unused") @SerializedName("wikibase_item") @Nullable private String wikiBaseItem;
-        @SuppressWarnings("unused") @Nullable private String displaytitle;
+        @SerializedName("wikibase_item") @Nullable private String wikiBaseItem;
+        @Nullable private String displaytitle;
+        @Nullable private String disambiguation;
 
         @Nullable public String getDisplayTitle() {
             return displaytitle;
         }
 
-        @Nullable public String getWikiBaseItem() {
-            return wikiBaseItem;
+        @NonNull public String getWikiBaseItem() {
+            return StringUtils.defaultString(wikiBaseItem);
+        }
+
+        public boolean isDisambiguation() {
+            return disambiguation != null;
+        }
+    }
+
+    public static class Category {
+        private int ns;
+        @Nullable private String title;
+        private boolean hidden;
+
+        public int ns() {
+            return ns;
+        }
+
+        @NonNull public String title() {
+            return StringUtils.defaultString(title);
+        }
+
+        public boolean hidden() {
+            return hidden;
+        }
+    }
+
+    public static class ImageLabel {
+        @SerializedName("wikidata_id") @Nullable private String wikidataId;
+        @Nullable private String state;
+        @Nullable private String label;
+
+        @NonNull public String getWikidataId() {
+            return StringUtils.defaultString(wikidataId);
+        }
+
+        @NonNull public String getState() {
+            return StringUtils.defaultString(state);
+        }
+
+        @NonNull public String getLabel() {
+            return StringUtils.defaultString(label);
         }
     }
 }

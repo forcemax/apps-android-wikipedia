@@ -2,9 +2,10 @@ package org.wikipedia.search;
 
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.text.TextUtils;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import org.wikipedia.dataclient.WikiSite;
 import org.wikipedia.dataclient.mwapi.MwQueryPage;
@@ -16,7 +17,7 @@ public class SearchResult extends BaseModel implements Parcelable {
     private final String redirectFrom;
 
     public SearchResult(@NonNull MwQueryPage page, @NonNull WikiSite wiki) {
-        this(new PageTitle(page.title(), wiki, page.thumbUrl(), page.description()), page.redirectFrom());
+        this(new PageTitle(page.title(), wiki, page.thumbUrl(), page.description(), page.displayTitle(wiki.languageCode())), page.redirectFrom());
     }
 
     public SearchResult(@NonNull PageTitle pageTitle) {

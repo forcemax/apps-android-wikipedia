@@ -3,7 +3,7 @@
    TO HAVE YOUR CHANGES OVERWRITTEN */
 package org.wikipedia.staticdata;
 
-import android.support.annotation.NonNull;
+import androidx.annotation.NonNull;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -21,7 +21,7 @@ public final class SpecialAliasData {
 
     @SuppressWarnings({"checkstyle:methodlength", "SpellCheckingInspection"})
     private static Map<String, String> newMap() {
-        final int size = 293;
+        final int size = 299;
         Map<String, String> map = new HashMap<>(size);
         map.put("ab", "Цастәи");
         map.put("ace", "Kusuih");
@@ -43,6 +43,7 @@ public final class SpecialAliasData {
         map.put("az", "Xüsusi");
         map.put("azb", "اؤزل");
         map.put("ba", "Махсус");
+        map.put("ban", "Kusus");
         map.put("bar", "Spezial");
         map.put("bat-smg", "Specēlos");
         map.put("bcl", "Espesyal");
@@ -114,6 +115,7 @@ public final class SpecialAliasData {
         map.put("gn", "Mba'echĩchĩ");
         map.put("gom", "विशेश");
         map.put("gor", "Spesial");
+        map.put("got", "Special");
         map.put("gu", "વિશેષ");
         map.put("gv", "Er lheh");
         map.put("ha", "Special");
@@ -127,6 +129,7 @@ public final class SpecialAliasData {
         map.put("ht", "Espesyal");
         map.put("hu", "Speciális");
         map.put("hy", "Սպասարկող");
+        map.put("hyw", "Սպասարկող");
         map.put("ia", "Special");
         map.put("id", "Istimewa");
         map.put("ie", "Special");
@@ -207,6 +210,7 @@ public final class SpecialAliasData {
         map.put("nn", "Spesial");
         map.put("nb", "Spesial");
         map.put("nov", "Special");
+        map.put("nqo", "ߞߙߍߞߙߍߣߍ߲");
         map.put("nrm", "Spécial");
         map.put("nso", "Special");
         map.put("nv", "Special");
@@ -243,6 +247,7 @@ public final class SpecialAliasData {
         map.put("rw", "Special");
         map.put("sa", "विशेषः");
         map.put("sah", "Аналлаах");
+        map.put("sat", "ᱟᱥᱚᱠᱟᱭ");
         map.put("sc", "Ispetziale");
         map.put("scn", "Spiciali");
         map.put("sco", "Special");
@@ -250,6 +255,7 @@ public final class SpecialAliasData {
         map.put("se", "Erenoamáš");
         map.put("sg", "Spécial");
         map.put("sh", "Posebno");
+        map.put("shn", "ၶိုၵ်ႉတွၼ်း");
         map.put("si", "විශේෂ");
         map.put("simple", "Special");
         map.put("sk", "Špeciálne");

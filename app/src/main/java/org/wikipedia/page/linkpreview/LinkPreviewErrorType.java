@@ -1,9 +1,9 @@
 package org.wikipedia.page.linkpreview;
 
-import android.support.annotation.DrawableRes;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.annotation.StringRes;
+import androidx.annotation.DrawableRes;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+import androidx.annotation.StringRes;
 
 import org.wikipedia.R;
 import org.wikipedia.util.ThrowableUtil;
@@ -64,7 +64,7 @@ enum LinkPreviewErrorType {
         if (caught != null && ThrowableUtil.is404(caught)) {
             return LinkPreviewErrorType.PAGE_MISSING;
         }
-        if (caught != null && ThrowableUtil.isOffline(caught)) {
+        if (caught != null && (ThrowableUtil.isOffline(caught) || ThrowableUtil.isTimeout(caught))) {
             return LinkPreviewErrorType.OFFLINE;
         }
         return LinkPreviewErrorType.GENERIC;

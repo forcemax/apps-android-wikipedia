@@ -1,14 +1,13 @@
 package org.wikipedia.dataclient.okhttp;
 
-import android.net.Uri;
-import android.os.Build;
-import android.support.annotation.NonNull;
-import android.support.annotation.RequiresApi;
+import android.text.TextUtils;
 import android.view.KeyEvent;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
+
+import androidx.annotation.NonNull;
 
 import org.apache.commons.lang3.StringUtils;
 import org.wikipedia.WikipediaApp;
@@ -27,6 +26,8 @@ import okhttp3.Headers;
 import okhttp3.Request;
 import okhttp3.Response;
 
+import static org.wikipedia.dataclient.RestService.PAGE_HTML_PREVIEW_ENDPOINT;
+
 public abstract class OkHttpWebViewClient extends WebViewClient {
 
     /*
@@ -40,44 +41,38 @@ public abstract class OkHttpWebViewClient extends WebViewClient {
 
     @NonNull public abstract PageViewModel getModel();
 
-    @SuppressWarnings("deprecation") @Override
-    public WebResourceResponse shouldInterceptRequest(WebView view, String url) {
-        if (!SUPPORTED_SCHEMES.contains(Uri.parse(url).getScheme())) {
-            return null;
-        }
-
-        try {
-            Response rsp = request(url);
-            // noinspection ConstantConditions
-            return new WebResourceResponse(rsp.body().contentType().type() + "/" + rsp.body().contentType().subtype(),
-                    rsp.body().contentType().charset(Charset.defaultCharset()).name(),
-                    getInputStream(rsp));
-        } catch (Exception e) {
-            L.e(e);
-        }
-        return null;
-    }
-
-    @RequiresApi(api = Build.VERSION_CODES.LOLLIPOP)
+    @SuppressWarnings("checkstyle:magicnumber")
     @Override public WebResourceResponse shouldInterceptRequest(WebView view,
                                                                 WebResourceRequest request) {
         if (!SUPPORTED_SCHEMES.contains(request.getUrl().getScheme())) {
             return null;
         }
 
+        if (request.getUrl().toString().contains(PAGE_HTML_PREVIEW_ENDPOINT)) {
+            return null;
+        }
+
+        WebResourceResponse response;
         try {
-            Response rsp = request(request.getUrl().toString());
-            // noinspection ConstantConditions
-            return new WebResourceResponse(rsp.body().contentType().type() + "/" + rsp.body().contentType().subtype(),
-                    rsp.body().contentType().charset(Charset.defaultCharset()).name(),
-                    rsp.code(),
-                    StringUtils.defaultIfBlank(rsp.message(), "Unknown error"),
-                    toMap(rsp.headers()),
-                    getInputStream(rsp));
+            Response rsp = request(request);
+            if (CONTENT_TYPE_OGG.equals(rsp.header(HEADER_CONTENT_TYPE))) {
+                rsp.close();
+                return super.shouldInterceptRequest(view, request);
+            } else {
+                // noinspection ConstantConditions
+                response =  new WebResourceResponse(rsp.body().contentType().type() + "/" + rsp.body().contentType().subtype(),
+                            rsp.body().contentType().charset(Charset.defaultCharset()).name(),
+                            rsp.code(),
+                            StringUtils.defaultIfBlank(rsp.message(), "Unknown error"),
+                            toMap(addResponseHeaders(rsp.headers())),
+                            getInputStream(rsp));
+            }
         } catch (Exception e) {
+            // TODO: we can send actual error message by handling the exception message.
+            response = new WebResourceResponse(null, null, 404, "Unknown error", null, null);
             L.e(e);
         }
-        return null;
+        return response;
     }
 
     @Override
@@ -86,16 +81,35 @@ public abstract class OkHttpWebViewClient extends WebViewClient {
                 || (!event.isCtrlPressed() && event.getKeyCode() == KeyEvent.KEYCODE_F3));
     }
 
-    @NonNull private Response request(String url) throws IOException {
-        return OkHttpConnectionFactory.getClient().newCall(new Request.Builder()
-                .url(url)
-                .cacheControl(getModel().getCacheControl())
-                // TODO: Find a common way to set this header between here and RetrofitFactory.
-                .header("Accept-Language", WikipediaApp.getInstance().getAcceptLanguage(getModel().getTitle().getWikiSite()))
-                .header(OfflineCacheInterceptor.SAVE_HEADER, getModel().shouldSaveOffline()
-                        ? OfflineCacheInterceptor.SAVE_HEADER_SAVE : OfflineCacheInterceptor.SAVE_HEADER_NONE)
-                .build())
-                .execute();
+    @NonNull private Response request(WebResourceRequest request) throws IOException {
+        Request.Builder builder = new Request.Builder()
+                .url(request.getUrl().toString())
+                .cacheControl(getModel().getCacheControl());
+        for (String header : request.getRequestHeaders().keySet()) {
+            if (header.equals("If-None-Match") || header.equals("If-Modified-Since")) {
+                // Strip away conditional headers from the request coming from the WebView, since
+                // we want control of caching for ourselves (it can break OkHttp's caching internals).
+                continue;
+            }
+            builder.header(header, request.getRequestHeaders().get(header));
+        }
+        return OkHttpConnectionFactory.getClient().newCall(addHeaders(builder).build()).execute();
+    }
+
+    private Request.Builder addHeaders(@NonNull Request.Builder builder) {
+        // TODO: Find a common way to set this header between here and RetrofitFactory.
+        builder.header("Accept-Language", WikipediaApp.getInstance().getAcceptLanguage(getModel().getTitle().getWikiSite()));
+        builder.header(OfflineCacheInterceptor.SAVE_HEADER, getModel().shouldSaveOffline()
+                ? OfflineCacheInterceptor.SAVE_HEADER_SAVE : OfflineCacheInterceptor.SAVE_HEADER_NONE);
+        if (getModel().getCurEntry() != null && !TextUtils.isEmpty(getModel().getCurEntry().getReferrer())) {
+            builder.header("Referer", getModel().getCurEntry().getReferrer());
+        }
+        return builder;
+    }
+
+    private Headers addResponseHeaders(@NonNull Headers headers) {
+        // add CORS header to allow requests from all domains.
+        return headers.newBuilder().set("Access-Control-Allow-Origin", "*").build();
     }
 
     @NonNull private Map<String, String> toMap(@NonNull Headers headers) {
@@ -106,7 +120,7 @@ public abstract class OkHttpWebViewClient extends WebViewClient {
         return map;
     }
 
-    @NonNull private InputStream getInputStream(@NonNull Response rsp) throws IOException {
+    @NonNull private InputStream getInputStream(@NonNull Response rsp) {
         InputStream inputStream = rsp.body().byteStream();
 
         if (CONTENT_TYPE_OGG.equals(rsp.header(HEADER_CONTENT_TYPE))) {

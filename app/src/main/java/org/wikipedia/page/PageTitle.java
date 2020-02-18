@@ -2,20 +2,16 @@ package org.wikipedia.page;
 
 import android.os.Parcel;
 import android.os.Parcelable;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
 import android.text.TextUtils;
+
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.google.gson.annotations.SerializedName;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-import org.wikipedia.WikipediaApp;
-import org.wikipedia.crash.RemoteLogException;
 import org.wikipedia.dataclient.WikiSite;
 import org.wikipedia.settings.SiteInfoClient;
 import org.wikipedia.util.StringUtil;
-import org.wikipedia.util.log.L;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -67,12 +63,14 @@ public class PageTitle implements Parcelable {
     //       isn't consistent across titles. e.g., articles with colons, such as RTÉ News: Six One,
     //       are broken.
     @Nullable private final String namespace;
-    @NonNull private final String text;
+    @NonNull private String text;
     @Nullable private final String fragment;
     @Nullable private String thumbUrl;
     @SerializedName("site") @NonNull private final WikiSite wiki;
     @Nullable private String description;
     @Nullable private final PageProperties properties;
+    // TODO: remove after the restbase endpoint supports ZH variants.
+    @Nullable private String displayText;
 
     /**
      * Creates a new PageTitle object.
@@ -106,6 +104,11 @@ public class PageTitle implements Parcelable {
     public PageTitle(@Nullable String text, @NonNull WikiSite wiki, @Nullable String thumbUrl, @Nullable String description, @Nullable PageProperties properties) {
         this(text, wiki, thumbUrl, properties);
         this.description = description;
+    }
+
+    public PageTitle(@Nullable String text, @NonNull WikiSite wiki, @Nullable String thumbUrl, @Nullable String description, @Nullable String displayText) {
+        this(text, wiki, thumbUrl, description);
+        this.displayText = displayText;
     }
 
     public PageTitle(@Nullable String text, @NonNull WikiSite wiki, @Nullable String thumbUrl, @Nullable String description) {
@@ -146,7 +149,7 @@ public class PageTitle implements Parcelable {
             String namespaceOrLanguage = parts[0];
             if (Arrays.asList(Locale.getISOLanguages()).contains(namespaceOrLanguage)) {
                 this.namespace = null;
-                this.wiki = WikiSite.forLanguageCode(namespaceOrLanguage);
+                this.wiki = new WikiSite(wiki.authority(), namespaceOrLanguage);
             } else {
                 this.wiki = wiki;
                 this.namespace = namespaceOrLanguage;
@@ -160,21 +163,6 @@ public class PageTitle implements Parcelable {
 
         this.thumbUrl = thumbUrl;
         this.properties = properties;
-    }
-
-    public PageTitle(JSONObject json) {
-        this.namespace = json.optString("namespace", null);
-        this.text = json.optString("text", null);
-        this.fragment = json.optString("fragment", null);
-        if (json.has("site")) {
-            wiki = new WikiSite(json.optString("site"), json.optString("languageCode"));
-        } else {
-            L.logRemoteErrorIfProd(new RemoteLogException("wiki is null").put("json", json.toString()));
-            wiki = WikipediaApp.getInstance().getWikiSite();
-        }
-        this.properties = json.has("properties") ? new PageProperties(json.optJSONObject("properties")) : null;
-        this.thumbUrl = json.optString("thumbUrl", null);
-        this.description = json.optString("description", null);
     }
 
     @Nullable
@@ -219,8 +207,17 @@ public class PageTitle implements Parcelable {
         this.description = description;
     }
 
+    // This update the text to the API text.
+    public void setText(@NonNull String convertedFromText) {
+        this.text = convertedFromText;
+    }
+
     @NonNull public String getDisplayText() {
-        return getPrefixedText().replace("_", " ");
+        return displayText == null ? getPrefixedText().replace("_", " ") : displayText;
+    }
+
+    public void setDisplayText(@Nullable String displayText) {
+        this.displayText = displayText;
     }
 
     public boolean hasProperties() {
@@ -241,21 +238,6 @@ public class PageTitle implements Parcelable {
 
     public boolean isDisambiguationPage() {
         return properties != null && properties.isDisambiguationPage();
-    }
-
-    public JSONObject toJSON() {
-        try {
-            JSONObject json = toIdentifierJSON();
-            json.put("languageCode", wiki.languageCode());
-            if (properties != null) {
-                json.put("properties", properties.toJSON());
-            }
-            json.put("thumbUrl", getThumbUrl());
-            json.put("description", getDescription());
-            return json;
-        } catch (JSONException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     public String getCanonicalUri() {
@@ -321,6 +303,7 @@ public class PageTitle implements Parcelable {
         parcel.writeParcelable(properties, flags);
         parcel.writeString(thumbUrl);
         parcel.writeString(description);
+        parcel.writeString(displayText);
     }
 
     @Override public boolean equals(Object o) {
@@ -347,20 +330,6 @@ public class PageTitle implements Parcelable {
         return 0;
     }
 
-    /** Please keep the ID stable. */
-    private JSONObject toIdentifierJSON() {
-        try {
-            JSONObject json = new JSONObject();
-            json.put("namespace", getNamespace());
-            json.put("text", getText());
-            json.put("fragment", getFragment());
-            json.put("site", wiki.authority());
-            return json;
-        } catch (JSONException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
     private String getUriForDomain(String domain) {
         try {
             return String.format(
@@ -383,5 +352,6 @@ public class PageTitle implements Parcelable {
         properties = in.readParcelable(PageProperties.class.getClassLoader());
         thumbUrl = in.readString();
         description = in.readString();
+        displayText = in.readString();
     }
 }

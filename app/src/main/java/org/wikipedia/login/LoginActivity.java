@@ -2,18 +2,22 @@ package org.wikipedia.login;
 
 import android.accounts.AccountAuthenticatorResponse;
 import android.accounts.AccountManager;
-import android.app.ProgressDialog;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
-import android.support.annotation.NonNull;
-import android.support.annotation.Nullable;
-import android.support.design.widget.TextInputLayout;
+import android.text.TextUtils;
 import android.view.View;
 import android.view.inputmethod.EditorInfo;
-import android.widget.EditText;
+import android.widget.Button;
+import android.widget.ProgressBar;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import com.google.android.material.textfield.TextInputLayout;
+
+import org.wikipedia.Constants;
 import org.wikipedia.R;
 import org.wikipedia.WikipediaApp;
 import org.wikipedia.activity.BaseActivity;
@@ -47,15 +51,16 @@ public class LoginActivity extends BaseActivity {
 
     @BindView(R.id.login_username_text) TextInputLayout usernameInput;
     @BindView(R.id.login_password_input) TextInputLayout passwordInput;
-    @BindView(R.id.login_2fa_text) EditText twoFactorText;
+    @BindView(R.id.login_2fa_text) TextInputLayout twoFactorText;
     @BindView(R.id.view_login_error) WikiErrorView errorView;
-    @BindView(R.id.login_button) View loginButton;
+    @BindView(R.id.login_button) Button loginButton;
+    @BindView(R.id.view_progress_bar) ProgressBar progressBar;
 
-    private ProgressDialog progressDialog;
     @Nullable private String firstStepToken;
     private LoginFunnel funnel;
     private String loginSource;
-    private LoginClient loginClient;
+    private LoginClient loginClient = new LoginClient();
+    private LoginCallback loginCallback = new LoginCallback();
     private boolean wentStraightToCreateAccount;
 
     public static Intent newIntent(@NonNull Context context, @NonNull String source) {
@@ -89,10 +94,6 @@ public class LoginActivity extends BaseActivity {
             }
             return false;
         });
-
-        progressDialog = new ProgressDialog(this);
-        progressDialog.setMessage(getString(R.string.login_in_progress_dialog_message));
-        progressDialog.setCancelable(false);
 
         funnel = new LoginFunnel(WikipediaApp.getInstance());
 
@@ -162,10 +163,15 @@ public class LoginActivity extends BaseActivity {
         Intent intent = new Intent(this, CreateAccountActivity.class);
         intent.putExtra(CreateAccountActivity.LOGIN_SESSION_TOKEN, funnel.getSessionToken());
         intent.putExtra(CreateAccountActivity.LOGIN_REQUEST_SOURCE, loginSource);
-        startActivityForResult(intent, CreateAccountActivity.ACTION_CREATE_ACCOUNT);
+        startActivityForResult(intent, Constants.ACTIVITY_REQUEST_CREATE_ACCOUNT);
     }
 
-    private void manualSyncAndFinish() {
+    private void onLoginSuccess() {
+        funnel.logSuccess();
+
+        hideSoftKeyboard(LoginActivity.this);
+        setResult(RESULT_LOGIN_SUCCESS);
+
         // Set reading list syncing to enabled (without the explicit setup instruction),
         // so that the sync adapter can run at least once and check whether syncing is enabled
         // on the server side.
@@ -180,7 +186,7 @@ public class LoginActivity extends BaseActivity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == CreateAccountActivity.ACTION_CREATE_ACCOUNT) {
+        if (requestCode == Constants.ACTIVITY_REQUEST_CREATE_ACCOUNT) {
             if (wentStraightToCreateAccount) {
                 logLoginStart();
             }
@@ -194,86 +200,79 @@ public class LoginActivity extends BaseActivity {
             } else {
                 funnel.logCreateAccountFailure();
             }
+        } else if (requestCode == Constants.ACTIVITY_REQUEST_RESET_PASSWORD
+                && resultCode == ResetPasswordActivity.RESULT_PASSWORD_RESET_SUCCESS) {
+            onLoginSuccess();
         }
     }
 
     private void doLogin() {
         final String username = getText(usernameInput).toString();
         final String password = getText(passwordInput).toString();
-        final String twoFactorCode = twoFactorText.getText().toString();
+        final String twoFactorCode = getText(twoFactorText).toString();
 
-        if (loginClient == null) {
-            loginClient = new LoginClient();
-        }
-        progressDialog.show();
+        showProgressBar(true);
 
-        if (!twoFactorCode.isEmpty()) {
+        if (!TextUtils.isEmpty(twoFactorCode) && !TextUtils.isEmpty(firstStepToken)) {
             loginClient.login(WikipediaApp.getInstance().getWikiSite(), username, password,
-                    twoFactorCode, firstStepToken, getCallback());
+                    null, twoFactorCode, firstStepToken, loginCallback);
         } else {
             loginClient.request(WikipediaApp.getInstance().getWikiSite(), username, password,
-                    getCallback());
+                    loginCallback);
         }
     }
 
-    private LoginClient.LoginCallback getCallback() {
-        return new LoginClient.LoginCallback() {
-            @Override
-            public void success(@NonNull LoginResult result) {
-                if (!progressDialog.isShowing()) {
-                    // no longer attached to activity!
-                    return;
-                }
-                progressDialog.dismiss();
-                if (result.pass()) {
-                    funnel.logSuccess();
+    private class LoginCallback implements LoginClient.LoginCallback {
+        @Override
+        public void success(@NonNull LoginResult result) {
+            showProgressBar(false);
+            if (result.pass()) {
 
-                    Bundle extras = getIntent().getExtras();
-                    AccountAuthenticatorResponse response = extras == null
-                            ? null
-                            : extras.getParcelable(AccountManager.KEY_ACCOUNT_AUTHENTICATOR_RESPONSE);
-                    AccountUtil.updateAccount(response, result);
+                Bundle extras = getIntent().getExtras();
+                AccountAuthenticatorResponse response = extras == null ? null
+                        : extras.getParcelable(AccountManager.KEY_ACCOUNT_AUTHENTICATOR_RESPONSE);
+                AccountUtil.updateAccount(response, result);
 
-                    hideSoftKeyboard(LoginActivity.this);
-                    setResult(RESULT_LOGIN_SUCCESS);
+                onLoginSuccess();
 
-                    manualSyncAndFinish();
-
-                } else if (result.fail()) {
-                    String message = result.getMessage();
-                    FeedbackUtil.showMessage(LoginActivity.this, message);
-                    funnel.logError(message);
-                    L.w("Login failed with result " + message);
-                }
+            } else if (result.fail()) {
+                String message = result.getMessage();
+                FeedbackUtil.showMessage(LoginActivity.this, message);
+                funnel.logError(message);
+                L.w("Login failed with result " + message);
             }
+        }
 
-            @Override
-            public void twoFactorPrompt(@NonNull Throwable caught, @NonNull String token) {
-                if (!progressDialog.isShowing()) {
-                    // no longer attached to activity!
-                    return;
-                }
-                progressDialog.dismiss();
-                firstStepToken = token;
-                twoFactorText.setVisibility(View.VISIBLE);
-                twoFactorText.requestFocus();
+        @Override
+        public void twoFactorPrompt(@NonNull Throwable caught, @Nullable String token) {
+            showProgressBar(false);
+            firstStepToken = token;
+            twoFactorText.setVisibility(View.VISIBLE);
+            twoFactorText.requestFocus();
+            FeedbackUtil.showError(LoginActivity.this, caught);
+        }
+
+        @Override
+        public void passwordResetPrompt(@Nullable String token) {
+            startActivityForResult(ResetPasswordActivity.newIntent(LoginActivity.this,
+                    getText(usernameInput).toString(), token), Constants.ACTIVITY_REQUEST_RESET_PASSWORD);
+        }
+
+        @Override
+        public void error(@NonNull Throwable caught) {
+            showProgressBar(false);
+            if (caught instanceof LoginClient.LoginFailedException) {
                 FeedbackUtil.showError(LoginActivity.this, caught);
+            } else {
+                showError(caught);
             }
+        }
+    }
 
-            @Override
-            public void error(@NonNull Throwable caught) {
-                if (!progressDialog.isShowing()) {
-                    // no longer attached to activity!
-                    return;
-                }
-                progressDialog.dismiss();
-                if (caught instanceof LoginClient.LoginFailedException) {
-                    FeedbackUtil.showError(LoginActivity.this, caught);
-                } else {
-                    showError(caught);
-                }
-            }
-        };
+    private void showProgressBar(boolean enable) {
+        progressBar.setVisibility(enable ? View.VISIBLE : View.GONE);
+        loginButton.setEnabled(!enable);
+        loginButton.setText(enable ? R.string.login_in_progress_dialog_message : R.string.menu_login);
     }
 
     @Override
@@ -284,9 +283,8 @@ public class LoginActivity extends BaseActivity {
 
     @Override
     public void onStop() {
-        if (progressDialog.isShowing()) {
-            progressDialog.dismiss();
-        }
+        showProgressBar(false);
+        loginClient.cancel();
         super.onStop();
     }
 
