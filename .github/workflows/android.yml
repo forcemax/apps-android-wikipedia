@@ -30,4 +30,4 @@ jobs:
       with:
         accesskey: ${{ secrets.APPTESTAI_KEY }}
         projectid: 1111 
-        packagefile: app/build/outputs/apk/app-prod-release.apk
+        packagefile: app/build/outputs/apk/prod/release/app-prod-release.apk
