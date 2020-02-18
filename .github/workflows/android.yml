@@ -25,3 +25,9 @@ jobs:
         echo "key.pass=${{ secrets.KEY_PASSWORD }}" >> ~/.sign/signing.properties
     - name: Build with Gradle
       run: ./gradlew assembleRelease
+    - name: Test app on apptest.ai
+      uses: forcemax/apptestai-test@v1
+      with:
+        accesskey: ${{ secrets.APPTESTAI_KEY }}
+        projectid: 1111 
+        packagefile: app/build/outputs/apk/app-prod-release.apk
