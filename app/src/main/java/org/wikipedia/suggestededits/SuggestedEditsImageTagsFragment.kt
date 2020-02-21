@@ -33,6 +33,7 @@ import org.wikipedia.dataclient.WikiSite
 import org.wikipedia.dataclient.mwapi.MwPostResponse
 import org.wikipedia.dataclient.mwapi.MwQueryPage
 import org.wikipedia.dataclient.mwapi.media.MediaHelper
+import org.wikipedia.dataclient.wikidata.EntityPostResponse
 import org.wikipedia.login.LoginClient.LoginFailedException
 import org.wikipedia.page.LinkMovementMethodExt
 import org.wikipedia.settings.Prefs
@@ -129,7 +130,7 @@ class SuggestedEditsImageTagsFragment : SuggestedEditsItemFragment(), CompoundBu
 
         val typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
         tagsChipGroup.removeAllViews()
-        val maxTags = 10
+        val maxTags = 5
         for (label in page!!.imageLabels) {
             if (label.state != "unreviewed") {
                 continue
@@ -283,7 +284,7 @@ class SuggestedEditsImageTagsFragment : SuggestedEditsItemFragment(), CompoundBu
         csrfClient.request(false, object : CsrfTokenClient.Callback {
             override fun success(token: String) {
 
-                val claimObservables = ArrayList<ObservableSource<MwPostResponse>>()
+                val claimObservables = ArrayList<ObservableSource<EntityPostResponse>>()
                 for (label in acceptedLabels) {
                     val claimTemplate = "{\"mainsnak\":" +
                             "{\"snaktype\":\"value\",\"property\":\"P180\"," +
@@ -385,7 +386,7 @@ class SuggestedEditsImageTagsFragment : SuggestedEditsItemFragment(), CompoundBu
 
     private fun playSuccessVibration() {
         val v = requireActivity().getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-        val pattern = longArrayOf(0, 100, 100, 100)
+        val pattern = longArrayOf(0, 100)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             v.vibrate(VibrationEffect.createWaveform(pattern, -1))
         } else {
