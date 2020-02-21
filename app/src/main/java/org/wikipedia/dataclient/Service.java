@@ -82,11 +82,13 @@ public interface Service {
     @GET(MW_API_PREFIX + "action=query&prop=description")
     @NonNull Observable<MwQueryResponse> getDescription(@NonNull @Query("titles") String titles);
 
-    @GET(MW_API_PREFIX + "action=query&prop=imageinfo&iiprop=timestamp|user|url|extmetadata&iiurlwidth=" + PREFERRED_THUMB_SIZE)
-    @NonNull Observable<MwQueryResponse> getImageExtMetadata(@NonNull @Query("titles") String titles);
+    @GET(MW_API_PREFIX + "action=query&prop=imageinfo|imagelabels&iiprop=timestamp|user|url|mime|extmetadata&iiurlwidth=" + PREFERRED_THUMB_SIZE)
+    @NonNull Observable<MwQueryResponse> getImageInfo(@NonNull @Query("titles") String titles,
+                                                      @NonNull @Query("iiextmetadatalanguage") String lang);
 
-    @GET(MW_API_PREFIX + "action=query&prop=videoinfo&viprop=timestamp|user|url|mime|extmetadata|derivatives&viurlwidth=" + PREFERRED_THUMB_SIZE)
-    @NonNull Observable<MwQueryResponse> getMediaInfo(@NonNull @Query("titles") String titles);
+    @GET(MW_API_PREFIX + "action=query&prop=videoinfo|imagelabels&viprop=timestamp|user|url|mime|extmetadata|derivatives&viurlwidth=" + PREFERRED_THUMB_SIZE)
+    @NonNull Observable<MwQueryResponse> getVideoInfo(@NonNull @Query("titles") String titles,
+                                                      @NonNull @Query("viextmetadatalanguage") String lang);
 
     @GET(MW_API_PREFIX + "action=sitematrix&smtype=language&smlangprop=code|name|localname&maxage=" + SITE_INFO_MAXAGE + "&smaxage=" + SITE_INFO_MAXAGE)
     @NonNull Observable<SiteMatrix> getSiteMatrix();
@@ -105,6 +107,10 @@ public interface Service {
     @GET(MW_API_PREFIX + "action=query&generator=random&redirects=1&grnnamespace=6&grnlimit=50"
             + "&prop=description|imageinfo&iiprop=timestamp|user|url|mime&iiurlwidth=" + PREFERRED_THUMB_SIZE)
     @NonNull Observable<MwQueryResponse> getRandomWithImageInfo();
+
+    @Headers("Cache-Control: no-cache")
+    @GET(MW_API_PREFIX + "action=query&generator=random&redirects=1&grnnamespace=6&grnlimit=100&prop=imagelabels")
+    @NonNull Observable<MwQueryResponse> getRandomWithImageLabels();
 
     @GET(MW_API_PREFIX + "action=query&prop=categories&clprop=hidden&cllimit=500")
     @NonNull Observable<MwQueryResponse> getCategories(@NonNull @Query("titles") String titles);
