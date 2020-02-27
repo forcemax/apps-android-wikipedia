@@ -24,6 +24,7 @@ def computeVersionName(label) {
 final JavaVersion JAVA_VERSION = JavaVersion.VERSION_1_8
 android {
     compileSdkVersion 29
+    ndkVersion "21.0.6113669"
 
     compileOptions {
         sourceCompatibility = JAVA_VERSION
