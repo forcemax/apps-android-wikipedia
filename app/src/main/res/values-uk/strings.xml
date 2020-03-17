@@ -199,11 +199,11 @@
   <string name="about_description">Про додаток Вікіпедії</string>
   <string name="privacy_policy_description">Політика конфіденційності</string>
   <string name="terms_of_use_description">Умови використання</string>
-  <string name="about_wikipedia_url">https://uk.m.wikipedia.org/wiki/Вікіпедія:Про</string>
-  <string name="privacy_policy_url">https://foundation.m.wikimedia.org/wiki/Privacy_policy/uk</string>
+  <string name="about_wikipedia_url">https://uk.wikipedia.org/wiki/Вікіпедія:Про</string>
+  <string name="privacy_policy_url" fuzzy="true">https://foundation.m.wikimedia.org/wiki/Privacy_policy/uk</string>
   <string name="offline_reading_and_data_url">https://www.mediawiki.org/wiki/Wikimedia_Apps/Android_FAQ#Offline_reading_and_data</string>
   <string name="android_app_faq_url">https://www.mediawiki.org/wiki/Wikimedia_Apps/Android_FAQ/uk</string>
-  <string name="terms_of_use_url">https://foundation.m.wikimedia.org/wiki/Terms_of_Use</string>
+  <string name="terms_of_use_url" fuzzy="true">https://foundation.m.wikimedia.org/wiki/Terms_of_Use</string>
   <string name="android_app_request_an_account_url">https://en.wikipedia.org/wiki/Wikipedia:Request_an_account</string>
   <string name="cc_by_sa_3_url">https://creativecommons.org/licenses/by-sa/3.0/deed.uk</string>
   <string name="cc_0_url">https://creativecommons.org/publicdomain/zero/1.0/deed.uk</string>
@@ -686,7 +686,6 @@
   <string name="suggested_edits_feed_card_title">Пропоновані редагування</string>
   <string name="suggested_edits_feed_card_add_description_button">Додати опис статті</string>
   <string name="suggested_edits_feed_card_add_translation_in_language_button">Додати опис статті (%s)</string>
-  <string name="suggested_edits_tutorial_message">Ласкаво просимо до нової домівки швидкого редагування у додатку Вікіпедії. Ваш внесок дуже цінний. Приємного редагування!</string>
   <string name="suggested_edits_tasks_onboarding_get_started">Розпочати</string>
   <string name="suggested_edits_image_preview_dialog_caption_in_language_title">Підпис зображення (%s)</string>
   <string name="suggested_edits_image_preview_dialog_description_in_language_title">Опис зображення (%s)</string>
