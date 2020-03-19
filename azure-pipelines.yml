@@ -9,6 +9,8 @@ trigger:
 pool:
   vmImage: 'ubuntu-latest'
 
+name: build_android
+
 steps:
 - bash: |
     mkdir -p $HOME/.sign/
