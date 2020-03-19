@@ -1,0 +1,35 @@
+# Starter pipeline
+# Start with a minimal pipeline that you can customize to build and deploy your code.
+# Add steps that build, run tests, deploy, and more:
+# https://aka.ms/yaml
+
+trigger:
+- master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+- bash: |
+    mkdir -p $HOME/.sign/
+    CURPWD=$(pwd)
+    echo "${SIGNING_KEY}" | base64 --decode > keystore.jks
+    echo "" > ~/.sign/signing.properties
+    echo "keystore=${CURPWD}/keystore.jks" >> ~/.sign/signing.properties
+    echo "store.pass=${KEY_STORE_PASSWORD}" >> ~/.sign/signing.properties
+    echo "key.alias=${ALIAS}" >> ~/.sign/signing.properties
+    echo "key.pass=${KEY_PASSWORD}" >> ~/.sign/signing.properties
+  displayName: create android keystore
+  env:
+    SIGNING_KEY: $(SIGNING_KEY)
+    KEY_STORE_PASSWORD: $(KEY_STORE_PASSWORD)
+    ALIAS: $(ALIAS)
+    KEY_PASSWORD: $(KEY_PASSWORD)
+- bash: |
+    ./gradlew assembleRelease
+  displayName: build
+- task: apptestai-test@0
+  inputs:
+    access_key: '$(APPTEST_AI_ACCESS_KEY)'
+    project_id: '1111'
+    binary_path: 'app/build/outputs/apk/prod/release/app-prod-release.apk'
