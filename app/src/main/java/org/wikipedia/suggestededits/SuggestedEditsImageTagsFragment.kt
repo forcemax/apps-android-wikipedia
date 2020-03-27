@@ -13,6 +13,7 @@ import android.view.ViewGroup
 import android.widget.CompoundButton
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
+import androidx.fragment.app.Fragment
 import com.google.android.material.chip.Chip
 import io.reactivex.Observable
 import io.reactivex.ObservableSource
@@ -47,7 +48,7 @@ class SuggestedEditsImageTagsFragment : SuggestedEditsItemFragment(), CompoundBu
         fun getLangCode(): String
         fun getSinglePage(): MwQueryPage?
         fun updateActionButton()
-        fun nextPage()
+        fun nextPage(sourceFragment: Fragment?)
     }
 
     var publishing: Boolean = false
@@ -171,15 +172,15 @@ class SuggestedEditsImageTagsFragment : SuggestedEditsItemFragment(), CompoundBu
         val typeface = Typeface.create("sans-serif-medium", Typeface.NORMAL)
         tagsChipGroup.removeAllViews()
 
-        // add an artificial chip for adding a custom tag
-        addChip(null, typeface)
-
         for (label in tagList) {
             if (label.state.isNotEmpty() && label.state != "unreviewed") {
                 continue
             }
             addChip(label, typeface)
         }
+
+        // add an artificial chip for adding a custom tag
+        addChip(null, typeface)
 
         disposables.add(MediaHelper.getImageCaptions(page!!.title())
                 .subscribeOn(Schedulers.io())
@@ -212,11 +213,9 @@ class SuggestedEditsImageTagsFragment : SuggestedEditsItemFragment(), CompoundBu
         chip.setTextColor(ResourceUtil.getThemedColor(requireContext(), R.attr.material_theme_primary_color))
         chip.typeface = typeface
         chip.isCheckable = true
-        if (label == null) {
-            chip.setChipIconResource(R.drawable.ic_chip_add_24px)
-            chip.iconEndPadding = 0f
-            chip.textStartPadding = DimenUtil.dpToPx(2f)
-        }
+        chip.setChipIconResource(R.drawable.ic_chip_add_24px)
+        chip.iconEndPadding = 0f
+        chip.textStartPadding = DimenUtil.dpToPx(2f)
         chip.chipIconSize = DimenUtil.dpToPx(24f)
         chip.chipIconTint = ColorStateList.valueOf(ResourceUtil.getThemedColor(requireContext(), R.attr.material_theme_de_emphasised_color))
         chip.setCheckedIconResource(R.drawable.ic_chip_check_24px)
@@ -273,8 +272,18 @@ class SuggestedEditsImageTagsFragment : SuggestedEditsItemFragment(), CompoundBu
 
     override fun onSelect(item: MwQueryPage.ImageLabel, searchTerm: String) {
         lastSearchTerm = searchTerm
-        item.isSelected = true
-        tagList.add(0, item)
+        var exists = false
+        for (tag in tagList) {
+            if (tag.wikidataId == item.wikidataId) {
+                exists = true
+                tag.isSelected = true
+                break
+            }
+        }
+        if (!exists) {
+            item.isSelected = true
+            tagList.add(item)
+        }
         updateContents()
     }
 
@@ -428,7 +437,7 @@ class SuggestedEditsImageTagsFragment : SuggestedEditsItemFragment(), CompoundBu
                 updateLicenseTextShown()
 
                 publishOverlayContainer.visibility = GONE
-                callback().nextPage()
+                callback().nextPage(this)
                 setPublishedState()
             }
         }, duration * 3)
@@ -461,7 +470,8 @@ class SuggestedEditsImageTagsFragment : SuggestedEditsItemFragment(), CompoundBu
         when {
             publishSuccess -> {
                 tagsLicenseText.visibility = GONE
-                tagsHintText.visibility = GONE
+                tagsHintText.setText(R.string.suggested_edits_image_tags_published_list)
+                tagsHintText.visibility = VISIBLE
             }
             atLeastOneTagChecked() -> {
                 tagsLicenseText.visibility = VISIBLE
@@ -469,6 +479,7 @@ class SuggestedEditsImageTagsFragment : SuggestedEditsItemFragment(), CompoundBu
             }
             else -> {
                 tagsLicenseText.visibility = GONE
+                tagsHintText.setText(R.string.suggested_edits_image_tags_choose)
                 tagsHintText.visibility = VISIBLE
             }
         }
