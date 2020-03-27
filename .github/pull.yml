@@ -1,5 +1,5 @@
 version: "1"
 rules:
   - base: master
-    upstream: apptest-at-apps:master    # change `wei` to the owner of upstream repo
+    upstream: apptest-ai-apps:master    # change `wei` to the owner of upstream repo
     mergeMethod: merge
