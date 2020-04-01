@@ -35,3 +35,7 @@ steps:
     access_key: '$(APPTEST_AI_ACCESS_KEY)'
     project_id: '1111'
     binary_path: 'app/build/outputs/apk/prod/release/app-prod-release.apk'
+    time_limit: 5
+    use_vo: false
+    login_id: '$(APP_LOGIN_ID)'
+    login_pw: '$(APP_LOGIN_PW)'
