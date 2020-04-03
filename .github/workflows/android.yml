@@ -31,3 +31,7 @@ jobs:
         access_key: ${{ secrets.APPTEST_AI_ACCESS_KEY }}
         project_id: 1111 
         binary_path: app/build/outputs/apk/prod/release/app-prod-release.apk
+        use_vo: false
+        time_limit: 5
+        login_id: ${{ secrets.APP_LOGIN_ID }}
+        login_pw: ${{ secrets.APP_LOGIN_PW }}
