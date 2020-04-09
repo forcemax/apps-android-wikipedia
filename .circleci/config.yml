@@ -14,6 +14,17 @@ jobs:
     steps:
       - checkout
       - run:
+          name: create keystore file, fill key
+          command: |
+            mkdir -p $HOME/.sign/
+            CURPWD=$(pwd)
+            echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > keystore.jks
+            echo "" > ~/.sign/signing.properties
+            echo "keystore=${CURPWD}/keystore.jks" >> ~/.sign/signing.properties
+            echo "store.pass=${{ secrets.KEY_STORE_PASSWORD }}" >> ~/.sign/signing.properties
+            echo "key.alias=${{ secrets.ALIAS }}" >> ~/.sign/signing.properties
+            echo "key.pass=${{ secrets.KEY_PASSWORD }}" >> ~/.sign/signing.properties
+      - run:
           name: Download Dependencies
           command: ./gradlew dependencies
       - run:
