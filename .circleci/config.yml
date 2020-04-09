@@ -18,12 +18,12 @@ jobs:
           command: |
             mkdir -p $HOME/.sign/
             CURPWD=$(pwd)
-            echo "${{ secrets.SIGNING_KEY }}" | base64 --decode > keystore.jks
+            echo "$SIGNING_KEY" | base64 --decode > keystore.jks
             echo "" > ~/.sign/signing.properties
             echo "keystore=${CURPWD}/keystore.jks" >> ~/.sign/signing.properties
-            echo "store.pass=${{ secrets.KEY_STORE_PASSWORD }}" >> ~/.sign/signing.properties
-            echo "key.alias=${{ secrets.ALIAS }}" >> ~/.sign/signing.properties
-            echo "key.pass=${{ secrets.KEY_PASSWORD }}" >> ~/.sign/signing.properties
+            echo "store.pass=$KEY_STORE_PASSWORD" >> ~/.sign/signing.properties
+            echo "key.alias=$ALIAS" >> ~/.sign/signing.properties
+            echo "key.pass=$KEY_PASSWORD" >> ~/.sign/signing.properties
       - run:
           name: Download Dependencies
           command: ./gradlew dependencies
@@ -31,8 +31,8 @@ jobs:
           name: Run build
           command: ./gradlew assembleRelease
       - apptest-ai/run-test:
-          binary_path: app/build/outputs/apk/prod/release/app-prod-release.apk
-          project_id: 1111
+          binary_path: "app/build/outputs/apk/prod/release/app-prod-release.apk"
+          project_id: "1111"
       - store_artifacts:
           path: test-results
       - store_test_results:
