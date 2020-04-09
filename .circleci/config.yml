@@ -7,10 +7,6 @@ jobs:
   build:
     docker:
       - image: circleci/android:api-29
-    environment:
-      JAVA_TOOL_OPTIONS: "-Xmx1024m"
-      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
-      TERM: dumb
     steps:
       - checkout
       - run:
@@ -24,9 +20,6 @@ jobs:
             echo "store.pass=$KEY_STORE_PASSWORD" >> ~/.sign/signing.properties
             echo "key.alias=$ALIAS" >> ~/.sign/signing.properties
             echo "key.pass=$KEY_PASSWORD" >> ~/.sign/signing.properties
-      - run:
-          name: Download Dependencies
-          command: ./gradlew dependencies
       - run:
           name: Run build
           command: ./gradlew assembleRelease
