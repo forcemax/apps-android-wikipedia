@@ -1,13 +1,28 @@
 version: 2.1
 
 orbs:
- android: circleci/android@0.2.0
+  apptest-ai: apptestai/android-app-test@volatile
 
 jobs:
   build:
-    executor: android/android
-        
+    docker:
+      - image: circleci/android:api-28
+    environment:
+      JAVA_TOOL_OPTIONS: "-Xmx1024m"
+      GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.workers.max=2"
+      TERM: dumb
     steps:
       - checkout
       - run:
-          command: ./gradlew build
+          name: Download Dependencies
+          command: ./gradlew dependencies
+      - run:
+          name: Run build
+          command: ./gradlew assembleRelease
+      - apptest-ai/run-test:
+          binary_path: app/build/outputs/apk/prod/release/app-prod-release.apk
+          project_id: 1111
+      - store_artifacts:
+          path: test-results
+      - store_test_results:
+          path: test-results
