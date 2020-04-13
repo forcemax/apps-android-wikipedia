@@ -6,10 +6,10 @@ orbs:
 jobs:
   build:
     environment:
-      JVM_OPTS: -Xmx2048m
-      GRADLE_OPTS: "-Xmx2048m -XX:+HeapDumpOnOutOfMemoryError -Dorg.gradle.daemon=false -Dorg.gradle.caching=true -Dorg.gradle.configureondemand=true -Dkotlin.compiler.execution.strategy=in-process -Dkotlin.incremental=false"
+      JVM_OPTS: -Xmx1536m
+      GRADLE_OPTS: "-XX:+HeapDumpOnOutOfMemoryError -Dorg.gradle.jvmargs=-Xmx1536m -Dorg.gradle.caching=true -Dorg.gradle.configureondemand=true -Dkotlin.compiler.execution.strategy=in-process -Dkotlin.incremental=false"
     docker:
-      - image: circleci/android:api-29
+      - image: circleci/android:api-28
     steps:
       - checkout
       - run:
@@ -25,7 +25,7 @@ jobs:
             echo "key.pass=$KEY_PASSWORD" >> ~/.sign/signing.properties
       - run:
           name: Run build
-          command: ./gradlew assembleRelease
+          command: ./gradlew assembleProd
       - apptest-ai/run-test:
           binary_path: "app/build/outputs/apk/prod/release/app-prod-release.apk"
           project_id: "1111"
