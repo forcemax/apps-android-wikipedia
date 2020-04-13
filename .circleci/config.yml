@@ -1,0 +1,35 @@
+version: 2.1
+
+orbs:
+  apptest-ai: apptestai/android-app-test@volatile
+
+jobs:
+  build:
+    environment:
+      JVM_OPTS: -Xmx1536m
+      GRADLE_OPTS: "-XX:+HeapDumpOnOutOfMemoryError -Dorg.gradle.jvmargs=-Xmx1536m -Dorg.gradle.caching=true -Dorg.gradle.configureondemand=true -Dkotlin.compiler.execution.strategy=in-process -Dkotlin.incremental=false"
+    docker:
+      - image: circleci/android:api-28
+    steps:
+      - checkout
+      - run:
+          name: create keystore file, fill key
+          command: |
+            mkdir -p $HOME/.sign/
+            CURPWD=$(pwd)
+            echo "$SIGNING_KEY" | base64 --decode > keystore.jks
+            echo "" > ~/.sign/signing.properties
+            echo "keystore=${CURPWD}/keystore.jks" >> ~/.sign/signing.properties
+            echo "store.pass=$KEY_STORE_PASSWORD" >> ~/.sign/signing.properties
+            echo "key.alias=$ALIAS" >> ~/.sign/signing.properties
+            echo "key.pass=$KEY_PASSWORD" >> ~/.sign/signing.properties
+      - run:
+          name: Run build
+          command: ./gradlew assembleProd
+      - apptest-ai/run-test:
+          binary_path: "app/build/outputs/apk/prod/release/app-prod-release.apk"
+          project_id: "1111"
+      - store_artifacts:
+          path: test-results
+      - store_test_results:
+          path: test-results
