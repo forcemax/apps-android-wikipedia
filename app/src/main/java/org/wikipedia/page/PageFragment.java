@@ -17,6 +17,8 @@ import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
+import android.webkit.WebResourceRequest;
+import android.webkit.WebResourceResponse;
 import android.webkit.WebView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -53,8 +55,10 @@ import org.wikipedia.auth.AccountUtil;
 import org.wikipedia.bridge.CommunicationBridge;
 import org.wikipedia.bridge.CommunicationBridge.CommunicationBridgeListener;
 import org.wikipedia.bridge.JavaScriptActionHandler;
+import org.wikipedia.dataclient.RestService;
 import org.wikipedia.dataclient.ServiceFactory;
 import org.wikipedia.dataclient.WikiSite;
+import org.wikipedia.dataclient.okhttp.HttpStatusException;
 import org.wikipedia.dataclient.okhttp.OkHttpWebViewClient;
 import org.wikipedia.dataclient.page.Protection;
 import org.wikipedia.descriptions.DescriptionEditActivity;
@@ -255,6 +259,11 @@ public class PageFragment extends Fragment implements BackPressedHandler, Commun
         return model.getTitle();
     }
 
+    @Override
+    public boolean isPreview() {
+        return false;
+    }
+
     public PageTitle getTitle() {
         return model.getTitle();
     }
@@ -277,6 +286,10 @@ public class PageFragment extends Fragment implements BackPressedHandler, Commun
 
     public EditHandler getEditHandler() {
         return editHandler;
+    }
+
+    public ToCHandler getTocHandler() {
+        return tocHandler;
     }
 
     public ViewGroup getContainerView() {
@@ -367,7 +380,7 @@ public class PageFragment extends Fragment implements BackPressedHandler, Commun
 
         editHandler = new EditHandler(this, bridge);
 
-        tocHandler = new ToCHandler(this, requireActivity().getWindow().getDecorView().findViewById(R.id.toc_container),
+        tocHandler = new ToCHandler(this, requireActivity().getWindow().getDecorView().findViewById(R.id.navigation_drawer),
                 requireActivity().getWindow().getDecorView().findViewById(R.id.page_scroller_button), bridge);
 
         // TODO: initialize View references in onCreateView().
@@ -425,20 +438,18 @@ public class PageFragment extends Fragment implements BackPressedHandler, Commun
             }
 
             @Override
-            public void onPageFinished(WebView view, String url) {
-                super.onPageFinished(view, url);
-                if (!isAdded()) {
-                    return;
-                }
-                pageFragmentLoadState.onPageFinished();
-                updateProgressBar(false, true, 0);
-                webView.setVisibility(View.VISIBLE);
-                app.getSessionFunnel().leadSectionFetchEnd();
+            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
+                onPageLoadError(new RuntimeException(description));
             }
 
             @Override
-            public void onReceivedError(WebView view, int errorCode, String description, String failingUrl) {
-                onPageLoadError(new RuntimeException(description));
+            public void onReceivedHttpError(WebView view, WebResourceRequest request, WebResourceResponse errorResponse) {
+                if (!request.getUrl().toString().contains(RestService.PAGE_HTML_ENDPOINT)) {
+                    // If the request is anything except the main mobile-html content request, then
+                    // don't worry about any errors and let the WebView deal with it.
+                    return;
+                }
+                onPageLoadError(new HttpStatusException(errorResponse.getStatusCode(), request.getUrl().toString(), errorResponse.getReasonPhrase()));
             }
         });
     }
@@ -473,6 +484,9 @@ public class PageFragment extends Fragment implements BackPressedHandler, Commun
 
         checkAndShowBookmarkOnboarding();
         maybeShowAnnouncement();
+
+        bridge.onMetadataReady();
+        bridge.execute(JavaScriptActionHandler.setFooter(model));
     }
 
     private void handleInternalLink(@NonNull PageTitle title) {
@@ -533,7 +547,7 @@ public class PageFragment extends Fragment implements BackPressedHandler, Commun
         super.onConfigurationChanged(newConfig);
         // if the screen orientation changes, then re-layout the lead image container,
         // but only if we've finished fetching the page.
-        if (!pageFragmentLoadState.isLoading() && !errorState) {
+        if (!bridge.isLoading() && !errorState) {
             pageFragmentLoadState.onConfigurationChanged();
         }
     }
@@ -863,13 +877,14 @@ public class PageFragment extends Fragment implements BackPressedHandler, Commun
         }
         updateProgressBar(false, true, 0);
         refreshView.setRefreshing(false);
-        pageFragmentLoadState.onPageFinished();
 
         if (pageRefreshed) {
             pageRefreshed = false;
         }
 
         hidePageContent();
+        bridge.onMetadataReady();
+
         errorView.setError(caught);
         errorView.setVisibility(View.VISIBLE);
 
@@ -894,7 +909,7 @@ public class PageFragment extends Fragment implements BackPressedHandler, Commun
     }
 
     public void refreshPage(int stagedScrollY) {
-        if (pageFragmentLoadState.isLoading()) {
+        if (bridge.isLoading()) {
             refreshView.setRefreshing(false);
             return;
         }
@@ -909,11 +924,7 @@ public class PageFragment extends Fragment implements BackPressedHandler, Commun
     }
 
     boolean isLoading() {
-        return pageFragmentLoadState.isLoading();
-    }
-
-    CommunicationBridge getBridge() {
-        return bridge;
+        return bridge.isLoading();
     }
 
     private void setBookmarkIconForPageSavedState(boolean pageSaved) {
@@ -970,6 +981,10 @@ public class PageFragment extends Fragment implements BackPressedHandler, Commun
                 return;
             }
 
+            updateProgressBar(false, true, 0);
+            webView.setVisibility(View.VISIBLE);
+            app.getSessionFunnel().leadSectionFetchEnd();
+
             bridge.evaluate(JavaScriptActionHandler.getRevision(), revision -> {
                 if (!isAdded()) {
                     return;
@@ -991,7 +1006,7 @@ public class PageFragment extends Fragment implements BackPressedHandler, Commun
                     sections.add(0, new Section(0, 0, model.getTitle().getDisplayText(), model.getTitle().getDisplayText(), ""));
                     model.getPage().setSections(sections);
                 }
-                tocHandler.setupToC(model.getPage(), model.getTitle().getWikiSite(), pageFragmentLoadState.isFirstPage());
+                tocHandler.setupToC(model.getPage(), model.getTitle().getWikiSite());
                 tocHandler.setEnabled(true);
             });
 
@@ -1009,9 +1024,7 @@ public class PageFragment extends Fragment implements BackPressedHandler, Commun
             if (!isAdded()) {
                 return;
             }
-
-            bridge.execute(JavaScriptActionHandler.setFooter(model));
-
+            bridge.onPcsReady();
         });
         bridge.addListener("reference", (String messageType, JsonObject messagePayload) -> {
             if (!isAdded()) {
@@ -1036,7 +1049,9 @@ public class PageFragment extends Fragment implements BackPressedHandler, Commun
             }
         });
         bridge.addListener("scroll_to_anchor", (String messageType, JsonObject payload) -> {
-            int diffY = DimenUtil.roundedDpToPx(payload.getAsJsonObject("rect").get("y").getAsFloat());
+            int diffY = payload.getAsJsonObject("rect").has("y")
+                    ? DimenUtil.roundedDpToPx(payload.getAsJsonObject("rect").get("y").getAsFloat())
+                    : DimenUtil.roundedDpToPx(payload.getAsJsonObject("rect").get("top").getAsFloat());
             final int offsetFraction = 3;
             webView.setScrollY(webView.getScrollY() + diffY - webView.getHeight() / offsetFraction);
         });
@@ -1116,8 +1131,7 @@ public class PageFragment extends Fragment implements BackPressedHandler, Commun
                     Constants.ACTIVITY_REQUEST_DESCRIPTION_EDIT_TUTORIAL);
         } else {
             SuggestedEditsSummary sourceSummary = new SuggestedEditsSummary(getTitle().getPrefixedText(), getTitle().getWikiSite().languageCode(), getTitle(),
-                    getTitle().getDisplayText(), getTitle().getDescription(), getTitle().getThumbUrl(),
-                    null, null, null, null);
+                    getTitle().getDisplayText(), getTitle().getDescription(), getTitle().getThumbUrl());
             startActivityForResult(DescriptionEditActivity.newIntent(requireContext(), getTitle(), text, sourceSummary, null, ADD_DESCRIPTION, PAGE_ACTIVITY),
                     Constants.ACTIVITY_REQUEST_DESCRIPTION_EDIT);
         }
@@ -1140,6 +1154,7 @@ public class PageFragment extends Fragment implements BackPressedHandler, Commun
      */
     private void hidePageContent() {
         leadImagesHandler.hide();
+        bridge.loadBlankPage();
         webView.setVisibility(View.INVISIBLE);
         if (callback() != null) {
             callback().onPageHideAllContent();

@@ -40,7 +40,8 @@ public class CommunicationBridge {
     private final Map<String, List<JSEventListener>> eventListeners;
     private final CommunicationBridgeListener communicationBridgeListener;
 
-    private boolean isDOMReady;
+    private boolean isMetadataReady;
+    private boolean isPcsReady;
     private final List<String> pendingJSMessages = new ArrayList<>();
     private final Map<String, ValueCallback<String>> pendingEvals = new HashMap<>();
 
@@ -51,6 +52,7 @@ public class CommunicationBridge {
     public interface CommunicationBridgeListener {
         WebView getWebView();
         PageTitle getPageTitle();
+        boolean isPreview();
     }
 
     @SuppressLint({"AddJavascriptInterface", "SetJavaScriptEnabled"})
@@ -64,13 +66,27 @@ public class CommunicationBridge {
         eventListeners = new HashMap<>();
     }
 
-    public void onPageFinished() {
-        isDOMReady = true;
+    public void onPcsReady() {
+        isPcsReady = true;
         flushMessages();
     }
 
+    public void loadBlankPage() {
+        communicationBridgeListener.getWebView().loadUrl("about:blank");
+    }
+
+    public void onMetadataReady() {
+        isMetadataReady = true;
+        flushMessages();
+    }
+
+    public boolean isLoading() {
+        return !(isMetadataReady && isPcsReady);
+    }
+
     public void resetHtml(@NonNull PageTitle pageTitle) {
-        isDOMReady = false;
+        isPcsReady = false;
+        isMetadataReady = false;
         pendingJSMessages.clear();
         pendingEvals.clear();
         communicationBridgeListener.getWebView().loadUrl(UriUtil
@@ -86,6 +102,10 @@ public class CommunicationBridge {
             incomingMessageHandler.removeCallbacksAndMessages(null);
             incomingMessageHandler = null;
         }
+        communicationBridgeListener.getWebView().setWebViewClient(null);
+        communicationBridgeListener.getWebView().removeJavascriptInterface("pcsClient");
+        // Explicitly load a blank page into the WebView, to stop playback of any media.
+        loadBlankPage();
     }
 
     public void addListener(String type, JSEventListener listener) {
@@ -110,7 +130,7 @@ public class CommunicationBridge {
     }
 
     private void flushMessages() {
-        if (!isDOMReady) {
+        if (!isPcsReady || !isMetadataReady) {
             return;
         }
         for (String jsString : pendingJSMessages) {
@@ -172,7 +192,7 @@ public class CommunicationBridge {
         @JavascriptInterface
         public synchronized String getSetupSettings() {
             return JavaScriptActionHandler.setUp(communicationBridgeListener.getWebView().getContext(),
-                    communicationBridgeListener.getPageTitle());
+                    communicationBridgeListener.getPageTitle(), communicationBridgeListener.isPreview());
         }
     }
 

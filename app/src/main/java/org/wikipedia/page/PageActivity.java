@@ -4,10 +4,12 @@ import android.app.SearchManager;
 import android.content.Context;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.ActionMode;
+import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.Menu;
 import android.view.MenuItem;
@@ -22,6 +24,7 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.widget.Toolbar;
+import androidx.drawerlayout.widget.FixedDrawerLayout;
 import androidx.preference.PreferenceManager;
 
 import com.google.android.material.bottomsheet.BottomSheetDialog;
@@ -54,14 +57,17 @@ import org.wikipedia.util.ClipboardUtil;
 import org.wikipedia.util.DeviceUtil;
 import org.wikipedia.util.DimenUtil;
 import org.wikipedia.util.FeedbackUtil;
+import org.wikipedia.util.ReleaseUtil;
 import org.wikipedia.util.ShareUtil;
 import org.wikipedia.util.ThrowableUtil;
+import org.wikipedia.views.FrameLayoutNavMenuTriggerer;
 import org.wikipedia.views.ObservableWebView;
 import org.wikipedia.views.PageActionOverflowView;
 import org.wikipedia.views.TabCountsView;
 import org.wikipedia.views.ViewUtil;
 import org.wikipedia.wiktionary.WiktionaryDialog;
 
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -80,8 +86,8 @@ import static org.wikipedia.settings.Prefs.isLinkPreviewEnabled;
 import static org.wikipedia.util.UriUtil.visitInExternalBrowser;
 
 public class PageActivity extends BaseActivity implements PageFragment.Callback,
-        LinkPreviewDialog.Callback, ThemeChooserDialog.Callback,
-        WiktionaryDialog.Callback{
+        LinkPreviewDialog.Callback, ThemeChooserDialog.Callback, WiktionaryDialog.Callback,
+        FrameLayoutNavMenuTriggerer.Callback {
     public static final String ACTION_LOAD_IN_NEW_TAB = "org.wikipedia.load_in_new_tab";
     public static final String ACTION_LOAD_IN_CURRENT_TAB = "org.wikipedia.load_in_current_tab";
     public static final String ACTION_LOAD_IN_CURRENT_TAB_SQUASH = "org.wikipedia.load_in_current_tab_squash";
@@ -101,6 +107,8 @@ public class PageActivity extends BaseActivity implements PageFragment.Callback,
         EXISTING_TAB
     }
 
+    @BindView(R.id.navigation_drawer) FixedDrawerLayout drawerLayout;
+    @BindView(R.id.activity_page_container) FrameLayoutNavMenuTriggerer containerWithNavTrigger;
     @BindView(R.id.page_progress_bar) ProgressBar progressBar;
     @BindView(R.id.page_toolbar_container) View toolbarContainerView;
     @BindView(R.id.page_toolbar) Toolbar toolbar;
@@ -166,6 +174,9 @@ public class PageActivity extends BaseActivity implements PageFragment.Callback,
         FeedbackUtil.setToolbarButtonLongPressToast(searchButton, tabsButton, overflowButton);
 
         toolbarHideHandler = new PageToolbarHideHandler(pageFragment, toolbarContainerView, toolbar, tabsButton);
+
+        drawerLayout.setScrimColor(Color.TRANSPARENT);
+        containerWithNavTrigger.setCallback(this);
 
         boolean languageChanged = false;
         if (savedInstanceState != null) {
@@ -237,6 +248,13 @@ public class PageActivity extends BaseActivity implements PageFragment.Callback,
         }
     }
 
+    @Override
+    public void onNavMenuSwipeRequest(int gravity) {
+        if (!isCabOpen() && gravity == Gravity.END) {
+            pageFragment.getTocHandler().show();
+        }
+    }
+
     private void goToMainTab(@NonNull NavTab tab) {
         startActivity(MainActivity.newIntent(this)
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -305,8 +323,13 @@ public class PageActivity extends BaseActivity implements PageFragment.Callback,
 
     private void handleIntent(@NonNull Intent intent) {
         if (Intent.ACTION_VIEW.equals(intent.getAction()) && intent.getData() != null) {
-            WikiSite wiki = new WikiSite(intent.getData());
-            PageTitle title = wiki.titleForUri(intent.getData());
+            Uri uri = intent.getData();
+            if (ReleaseUtil.isProdRelease() && uri.getScheme() != null && uri.getScheme().equals("http")) {
+                // For external links, ensure that they're using https.
+                uri = uri.buildUpon().scheme(WikiSite.DEFAULT_SCHEME).build();
+            }
+            WikiSite wiki = new WikiSite(uri);
+            PageTitle title = wiki.titleForUri(uri);
             HistoryEntry historyEntry = new HistoryEntry(title,
                     intent.hasExtra(Constants.INTENT_EXTRA_VIEW_FROM_NOTIFICATION)
                             ? HistoryEntry.SOURCE_NOTIFICATION_SYSTEM : HistoryEntry.SOURCE_EXTERNAL_LINK);
@@ -316,7 +339,7 @@ public class PageActivity extends BaseActivity implements PageFragment.Callback,
                 historyEntry.setReferrer(intent.getExtras().get(Intent.EXTRA_REFERRER).toString());
             }
             if (title.isSpecial()) {
-                visitInExternalBrowser(this, intent.getData());
+                visitInExternalBrowser(this, uri);
                 finish();
                 return;
             }
@@ -637,6 +660,7 @@ public class PageActivity extends BaseActivity implements PageFragment.Callback,
     protected void onResume() {
         super.onResume();
         app.resetWikiSite();
+        Prefs.storeTemporaryWikitext(null);
     }
 
     @Override
@@ -699,13 +723,30 @@ public class PageActivity extends BaseActivity implements PageFragment.Callback,
     public void onActionModeStarted(ActionMode mode) {
         super.onActionModeStarted(mode);
         if (!isCabOpen() && mode.getTag() == null) {
-            Menu menu = mode.getMenu();
-            menu.clear();
-            mode.getMenuInflater().inflate(R.menu.menu_text_select, menu);
+            modifyMenu(mode);
             ViewUtil.setCloseButtonInActionMode(pageFragment.requireContext(), mode);
             pageFragment.onActionModeShown(mode);
         }
         currentActionModes.add(mode);
+    }
+
+    private void modifyMenu(ActionMode mode) {
+        Menu menu = mode.getMenu();
+        ArrayList<MenuItem> menuItemsList = new ArrayList<>();
+
+        for (int i = 0; i < menu.size(); i++) {
+            String title = menu.getItem(i).getTitle().toString();
+            if (!title.contains(getString(R.string.search_hint))
+                    && !(title.contains(getString(R.string.menu_text_select_define)) && pageFragment.getShareHandler().shouldEnableWiktionaryDialog())) {
+                menuItemsList.add(menu.getItem(i));
+            }
+        }
+
+        menu.clear();
+        mode.getMenuInflater().inflate(R.menu.menu_text_select, menu);
+        for (MenuItem menuItem : menuItemsList) {
+            menu.add(menuItem.getGroupId(), menuItem.getItemId(), Menu.NONE, menuItem.getTitle()).setIntent(menuItem.getIntent()).setIcon(menuItem.getIcon());
+        }
     }
 
     @Override

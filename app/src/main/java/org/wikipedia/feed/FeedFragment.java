@@ -10,7 +10,6 @@ import android.view.MenuItem;
 import android.view.View;
 import android.view.ViewGroup;
 
-import androidx.annotation.IntRange;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AlertDialog;
@@ -86,7 +85,6 @@ import static org.wikipedia.language.AppLanguageLookUpTable.TRADITIONAL_CHINESE_
 public class FeedFragment extends Fragment implements BackPressedHandler {
     @BindView(R.id.feed_swipe_refresh_layout) SwipeRefreshLayout swipeRefreshLayout;
     @BindView(R.id.fragment_feed_feed) FeedView feedView;
-    @BindView(R.id.fragment_feed_header) View feedHeader;
     @BindView(R.id.fragment_feed_empty_container) View emptyContainer;
     private Unbinder unbinder;
     private FeedAdapter<?> feedAdapter;
@@ -138,7 +136,6 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
         unbinder = ButterKnife.bind(this, view);
         feedAdapter = new FeedAdapter<>(coordinator, feedCallback);
         feedView.setAdapter(feedAdapter);
-        feedView.setCallback(feedCallback);
         feedView.addOnScrollListener(feedScrollListener);
 
         swipeRefreshLayout.setColorSchemeResources(ResourceUtil.getThemedAttributeId(requireContext(), R.attr.colorAccent));
@@ -178,7 +175,6 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
             }
         });
 
-        feedHeader.setBackgroundColor(ResourceUtil.getThemedColor(requireContext(), R.attr.main_toolbar_color));
         if (getCallback() != null) {
             getCallback().updateToolbarElevation(shouldElevateToolbar());
         }
@@ -279,7 +275,6 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
         coordinator.setFeedUpdateListener(null);
         swipeRefreshLayout.setOnRefreshListener(null);
         feedView.removeOnScrollListener(feedScrollListener);
-        feedView.setCallback((FeedAdapter.Callback) null);
         feedView.setAdapter(null);
         feedAdapter = null;
         unbinder.unbind();
@@ -463,11 +458,6 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
         }
 
         @Override
-        public void onSwiped(@IntRange(from = 0) int itemPos) {
-            onRequestDismissCard(coordinator.getCards().get(itemPos));
-        }
-
-        @Override
         public void onNewsItemSelected(@NonNull NewsItemCard card, @NonNull HorizontalScrollingListCardItemView view) {
             if (getCallback() != null) {
                 funnel.cardClicked(card.type(), card.wikiSite().languageCode());
@@ -563,11 +553,6 @@ public class FeedFragment extends Fragment implements BackPressedHandler {
         @Override
         public void onScrolled(RecyclerView recyclerView, int dx, int dy) {
             super.onScrolled(recyclerView, dx, dy);
-            int yOffset = feedView.computeVerticalScrollOffset() * 2;
-            if (yOffset <= feedHeader.getHeight()
-                    || feedHeader.getTranslationY() > -feedHeader.getHeight()) {
-                feedHeader.setTranslationY(-yOffset);
-            }
             boolean shouldShowSearchIcon = feedView.getFirstVisibleItemPosition() != 0;
             if (shouldShowSearchIcon != searchIconVisible) {
                 searchIconVisible = shouldShowSearchIcon;

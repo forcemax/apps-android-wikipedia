@@ -103,8 +103,12 @@ public abstract class OkHttpWebViewClient extends WebViewClient {
             }
             //------------------
 
-            // TODO: we can send actual error message by handling the exception message.
-            response = new WebResourceResponse(null, null, 404, "Unknown error", null, null);
+            String reasonCode = TextUtils.isEmpty(e.getMessage()) ? "Unknown error" : e.getMessage();
+            if (e instanceof HttpStatusException) {
+                response = new WebResourceResponse(null, null, ((HttpStatusException) e).code(), reasonCode, null, null);
+            } else {
+                response = new WebResourceResponse(null, null, 500, reasonCode, null, null);
+            }
             L.e(e);
         }
         return response;
