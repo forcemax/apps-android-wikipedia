@@ -44,6 +44,7 @@
 * Stjn
 * ToJack
 * Vlad5250
+* Wikisaurus
 * WindEwriX
 * Wirbel78
 * Yuryleb
@@ -101,10 +102,7 @@
   <string name="menu_long_press_open_page">Открыть</string>
   <string name="menu_long_press_open_in_new_tab">Открыть в новой вкладке</string>
   <string name="menu_long_press_copy_page">Скопировать адрес ссылки</string>
-  <string name="menu_text_select_copy">Копировать</string>
   <string name="menu_text_select_define">Определение</string>
-  <string name="menu_text_select_share">Поделиться</string>
-  <string name="share">Поделиться</string>
   <string name="on_this_day_page_share">Поделиться</string>
   <string name="reading_list_page_share">Поделиться</string>
   <string name="menu_text_select_edit_here">Править здесь</string>
@@ -154,7 +152,7 @@
   <string name="menu_login">Войти</string>
   <string name="login_activity_title">Войти в Википедию</string>
   <string name="login_in_progress_dialog_message">Вход в систему…</string>
-  <string name="login_success_toast">Вошли!</string>
+  <string name="login_success_toast">Вход выполнен успешно!</string>
   <string name="reset_password_title">Установите пароль</string>
   <string name="reset_password_description">Вы представились с помощью временного пароля. Для завершения входа необходимо установить новый пароль.</string>
   <string name="reset_password_hint">Новый пароль</string>
@@ -243,6 +241,7 @@
   <string name="suggested_edits_image_tags_help_url">https://www.mediawiki.org/wiki/Wikimedia_Apps/Suggested_edits#Image_tags</string>
   <string name="about_libraries_heading">Используемые библиотеки</string>
   <string name="about_contributors_heading">Авторы</string>
+  <string name="about_contributors">&lt;a href=\"https://www.mediawiki.org/wiki/Wikimedia_Apps/Team/Android\"&gt;Страница команды&lt;/a&gt;</string>
   <string name="about_translators_heading">Переводчики</string>
   <string name="about_translators_translatewiki">Это приложение было переведено добровольцами на &lt;a href=\"https://translatewiki.net\"&gt;translatewiki.net&lt;/a&gt;.</string>
   <string name="about_app_license_heading">Лицензия</string>
@@ -317,11 +316,7 @@
   <string name="gallery_add_image_caption_button">Добавить описание изображения</string>
   <string name="gallery_add_image_caption_in_language_button">Добавить описание изображения (%s)</string>
   <string name="err_cannot_save_file">Не удаётся сохранить файл</string>
-  <string name="snippet_share_intro">«%1$s» на сайте @Wikipedia: %2$s</string>
   <string name="expand_refs">Нажмите, чтобы развернуть</string>
-  <string name="share_snippet_button">Поделиться изображением</string>
-  <string name="share_normal_button">Поделиться текстом</string>
-  <string name="snippet_share_preview_image_desc">Предварительный просмотр изображения</string>
   <string name="cc_logo">Лицензия Creative Commons</string>
   <string name="captcha_image">Капча-изображение</string>
   <string name="gallery_fair_use_license">Добросовестное использование</string>
@@ -628,7 +623,7 @@
   <string name="feed_item_type_featured_article">Избранная статья дня в Википедии</string>
   <string name="feed_item_type_trending">Самые просматриваемые статьи за этот день</string>
   <string name="feed_item_type_featured_image">Избранное изображение дня с Викисклада</string>
-  <string name="feed_item_type_main_page">Главная страница Википедии с ежедневно обновляемыми избранными материалами</string>
+  <string name="feed_item_type_main_page">Заглавная страница Википедии с ежедневно обновляемыми избранными материалами</string>
   <string name="feed_item_type_randomizer">Сгенерировать случайный список статей для чтения</string>
   <string name="feed_item_type_suggested_edits">Предложено к редактированию кратких описаний</string>
   <string name="feed_empty_message">Ваша лента пуста</string>
@@ -750,16 +745,31 @@
   <string name="suggested_edits_image_tags_publishing">Публикация</string>
   <string name="suggested_edits_image_tags_published">Опубликовано</string>
   <string name="suggested_edits_image_tags_onboarding_title">Тегирование изображений позволяет их легче найти.</string>
-  <string name="suggested_edits_image_tags_onboarding_text">Добавляя теги к изображению, вы поможете находить изображения в Commons, репозитории свободных к распространению изображений, который Википедия использует для изображений в своих статьях.\n\nМы автоматически предложили несколько тегов. Вы также можете добавить свои теги.</string>
+  <string name="suggested_edits_image_tags_onboarding_text" fuzzy="true">Добавляя теги к изображению, вы поможете находить изображения в Commons, репозитории свободных к распространению изображений, который Википедия использует для изображений в своих статьях.\n\nМы автоматически предложили несколько тегов. Вы также можете добавить свои теги.</string>
   <string name="suggested_edits_image_tags_snackbar">Добавьте теги изображений, чтобы улучшить поиск таких изображений.</string>
-  <string name="suggested_edits_image_tags_task_detail">Помечайте изображения, чтобы их было легче найти. Выберите из предложенных тегов или добавьте свой собственный.</string>
+  <string name="suggested_edits_image_tags_task_detail" fuzzy="true">Помечайте изображения, чтобы их было легче найти. Выберите из предложенных тегов или добавьте свой собственный.</string>
   <string name="suggested_edits_image_tags_choose">Добавить или выбрать подходящие теги</string>
   <string name="suggested_edits_image_tags_search">Искать метки</string>
   <string name="suggested_edits_image_tags_select_title">Вы не выбрали ни одного тега этому изображению</string>
   <string name="suggested_edits_image_tags_select_text">Только выбранные вами теги будут добавлены изображениям. Те, которые вы не выбрали - будут отклонены. Вы уверены что хотите отклонить все теги?</string>
   <string name="suggested_edits_image_tags_add_tag">Добавить тег</string>
   <string name="suggested_edits_pageviews_label_text">Просмотры страниц</string>
+  <string name="suggested_edits_quality_label_text">Качество правки</string>
+  <string name="suggested_edits_quality_perfect_text">Превосходная</string>
+  <string name="suggested_edits_quality_excellent_text">Отличная</string>
+  <string name="suggested_edits_quality_very_good_text">Очень хорошая</string>
+  <string name="suggested_edits_quality_good_text">Хорошая</string>
+  <string name="suggested_edits_quality_okay_text">Нормальная</string>
+  <string name="suggested_edits_quality_sufficient_text">Удовлетворительная</string>
+  <string name="suggested_edits_quality_poor_text">Плохая</string>
   <string name="suggested_edits_quality_bad_text">Плохо</string>
+  <string name="suggested_edits_contribute">Вклад</string>
+  <plurals name="suggested_edits_contribution">
+    <item quantity="one">Вклад</item>
+    <item quantity="few">Вклад</item>
+    <item quantity="many">Вклад</item>
+    <item quantity="other">Вклад</item>
+  </plurals>
   <plurals name="suggested_edits_edit_streak_detail_text">
     <item quantity="one">%d день</item>
     <item quantity="few">%d дня</item>
@@ -767,6 +777,8 @@
     <item quantity="other">%d дней</item>
   </plurals>
   <string name="suggested_edits_last_edited_never">Никогда</string>
+  <string name="suggested_edits_reactivation_notification_title">Предложенные правки</string>
+  <string name="suggested_edits_reactivation_notification_stage_two">Есть минутка, чтобы продолжить улучшать Википедию? Ознакомьтесь с этими предложениями по редактированию.</string>
   <string name="description_edit_revert_subtitle">Спасибо за редактирование Википедии!</string>
   <string name="description_edit_revert_intro">Мы знаем, что вы старались, но один из участников заметил что-то некорректное. Возможные причины, почему ваша правка была отменена:</string>
   <string name="description_edit_revert_reason1">ваш вклад не отвечал одному из &lt;a href=\"%1$s\"&gt;руководящих принципов&lt;/a&gt;.</string>
@@ -805,6 +817,8 @@
   <string name="events_count_text">%1$s событий за %2$s—%3$d</string>
   <string name="this_year">Этот год</string>
   <string name="back_to_top">Вернуться наверх</string>
+  <string name="on_this_day_dialog_next_month">Следующий месяц</string>
+  <string name="on_this_day_dialog_previous_month">Предыдущий месяц</string>
   <plurals name="diff_years" fuzzy="true">
     <item quantity="one">В прошлом году</item>
     <item quantity="other">%d года назад</item>

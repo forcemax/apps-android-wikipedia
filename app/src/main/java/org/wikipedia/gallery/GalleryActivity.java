@@ -12,7 +12,6 @@ import android.os.Bundle;
 import android.text.TextUtils;
 import android.view.Gravity;
 import android.view.Menu;
-import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
@@ -58,7 +57,6 @@ import org.wikipedia.util.ImageUrlUtil;
 import org.wikipedia.util.ShareUtil;
 import org.wikipedia.util.StringUtil;
 import org.wikipedia.util.log.L;
-import org.wikipedia.views.ImageZoomHelper;
 import org.wikipedia.views.PositionAwareFragmentStateAdapter;
 import org.wikipedia.views.ViewAnimations;
 import org.wikipedia.views.WikiErrorView;
@@ -131,7 +129,6 @@ public class GalleryActivity extends BaseActivity implements LinkPreviewDialog.C
 
     private boolean controlsShowing = true;
     private GalleryPageChangeListener pageChangeListener = new GalleryPageChangeListener();
-    private ImageZoomHelper imageZoomHelper;
 
     @Nullable private GalleryFunnel funnel;
 
@@ -214,7 +211,6 @@ public class GalleryActivity extends BaseActivity implements LinkPreviewDialog.C
         galleryPager.registerOnPageChangeCallback(pageChangeListener);
         galleryPager.setOffscreenPageLimit(2);
 
-        imageZoomHelper = new ImageZoomHelper(this);
         funnel = new GalleryFunnel(app, getIntent().getParcelableExtra(EXTRA_WIKI),
                 getIntent().getIntExtra(EXTRA_SOURCE, 0));
 
@@ -320,11 +316,6 @@ public class GalleryActivity extends BaseActivity implements LinkPreviewDialog.C
         }
     }
 
-    @Override
-    public boolean dispatchTouchEvent(MotionEvent event) {
-        return imageZoomHelper.onDispatchTouchEvent(event) || super.dispatchTouchEvent(event);
-    }
-
     @OnClick(R.id.gallery_caption_edit_button) void onEditClick(View v) {
         GalleryItemFragment item = getCurrentItem();
         if (item == null || item.getImageTitle() == null || item.getMediaInfo() == null || item.getMediaInfo().getMetadata() == null) {
@@ -337,7 +328,7 @@ public class GalleryActivity extends BaseActivity implements LinkPreviewDialog.C
 
         SuggestedEditsSummary summary = new SuggestedEditsSummary(title.getPrefixedText(), sourceWiki.languageCode(), title,
                 title.getDisplayText(), StringUtils.defaultIfBlank(StringUtil.fromHtml(item.getMediaInfo().getMetadata().imageDescription()).toString(), null),
-                item.getMediaInfo().getThumbUrl(), null, null, null, null);
+                item.getMediaInfo().getThumbUrl());
 
         startActivityForResult(DescriptionEditActivity.newIntent(this, title, null, summary, null, ADD_CAPTION, GALLERY_ACTIVITY),
                 ACTIVITY_REQUEST_DESCRIPTION_EDIT);
@@ -361,12 +352,10 @@ public class GalleryActivity extends BaseActivity implements LinkPreviewDialog.C
         }
 
         SuggestedEditsSummary sourceSummary = new SuggestedEditsSummary(sourceTitle.getPrefixedText(), sourceTitle.getWikiSite().languageCode(), sourceTitle,
-                sourceTitle.getDisplayText(), currentCaption, item.getMediaInfo().getThumbUrl(),
-                null, null, null, null);
+                sourceTitle.getDisplayText(), currentCaption, item.getMediaInfo().getThumbUrl());
 
         SuggestedEditsSummary targetSummary = new SuggestedEditsSummary(targetTitle.getPrefixedText(), targetTitle.getWikiSite().languageCode(), targetTitle,
-                targetTitle.getDisplayText(), null, item.getMediaInfo().getThumbUrl(),
-                null, null, null, null);
+                targetTitle.getDisplayText(), null, item.getMediaInfo().getThumbUrl());
 
         startActivityForResult(DescriptionEditActivity.newIntent(this, targetTitle, null, sourceSummary, targetSummary,
                 (sourceSummary.getLang().equals(targetSummary.getLang())) ? ADD_CAPTION : TRANSLATE_CAPTION, GALLERY_ACTIVITY),

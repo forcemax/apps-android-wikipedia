@@ -28,7 +28,6 @@ import org.wikipedia.dataclient.ServiceFactory;
 import org.wikipedia.dataclient.WikiSite;
 import org.wikipedia.dataclient.mwapi.MwException;
 import org.wikipedia.dataclient.mwapi.MwServiceError;
-import org.wikipedia.dataclient.retrofit.RetrofitException;
 import org.wikipedia.dataclient.wikidata.EntityPostResponse;
 import org.wikipedia.descriptions.DescriptionEditActivity.Action;
 import org.wikipedia.json.GsonMarshaller;
@@ -108,6 +107,7 @@ public class DescriptionEditFragment extends Fragment {
             }
 
             Prefs.setLastDescriptionEditTime(new Date().getTime());
+            Prefs.setSuggestedEditsReactivationPassStageOne(false);
             SuggestedEditsFunnel.get().success(action);
 
             if (getActivity() == null)  {
@@ -327,8 +327,7 @@ public class DescriptionEditFragment extends Fragment {
                                 funnel.logSaved(response.getEntity() != null ? response.getEntity().getLastRevId() : 0);
                             }
                         } else {
-                            editFailed(RetrofitException.unexpectedError(new RuntimeException(
-                                    "Received unrecognized description edit response")), true);
+                            editFailed(new RuntimeException("Received unrecognized description edit response"), true);
                         }
                     }, caught -> {
                         if (caught instanceof MwException) {
@@ -356,15 +355,13 @@ public class DescriptionEditFragment extends Fragment {
 
         private Observable<EntityPostResponse> getPostObservable(@NonNull String editToken, @Nullable String languageCode) {
             if (action == ADD_CAPTION || action == TRANSLATE_CAPTION) {
-                return ServiceFactory.get(wikiCommons).postLabelEdit(pageTitle.getWikiSite().languageCode(),
-                        pageTitle.getWikiSite().languageCode(), commonsDbName,
+                return ServiceFactory.get(wikiCommons).postLabelEdit(languageCode, languageCode, commonsDbName,
                         pageTitle.getPrefixedText(), editView.getDescription(),
                         action == ADD_CAPTION ? SuggestedEditsFunnel.SUGGESTED_EDITS_ADD_COMMENT
                                 : action == TRANSLATE_CAPTION ? SuggestedEditsFunnel.SUGGESTED_EDITS_TRANSLATE_COMMENT : null,
                         editToken, AccountUtil.isLoggedIn() ? "user" : null);
             } else {
-                return ServiceFactory.get(wikiData).postDescriptionEdit(languageCode,
-                        pageTitle.getWikiSite().languageCode(), pageTitle.getWikiSite().dbName(),
+                return ServiceFactory.get(wikiData).postDescriptionEdit(languageCode, languageCode, pageTitle.getWikiSite().dbName(),
                         pageTitle.getPrefixedText(), editView.getDescription(),
                         action == ADD_DESCRIPTION ? SuggestedEditsFunnel.SUGGESTED_EDITS_ADD_COMMENT
                                 : action == TRANSLATE_DESCRIPTION ? SuggestedEditsFunnel.SUGGESTED_EDITS_TRANSLATE_COMMENT : null,
