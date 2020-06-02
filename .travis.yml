@@ -14,10 +14,11 @@ android:
   - google-gdk-license-.+
 before_script:
 - echo "$SIGNING_KEY" | base64 --decode > keystore.jks
-- echo "storeFile=${CURPWD}/keystore.jks" > android/key.properties
-- echo "storePassword=$KEY_STORE_PASSWORD" >> android/key.properties
-- echo "keyAlias=$ALIAS" >> android/key.properties
-- echo "keyPassword=$KEY_PASSWORD" >> android/key.properties
+- echo "" > ~/.sign/signing.properties
+- echo "keystore=${CURPWD}/keystore.jks" >> ~/.sign/signing.properties
+- echo "store.pass=$KEY_STORE_PASSWORD" >> ~/.sign/signing.properties
+- echo "key.alias=$ALIAS" >> ~/.sign/signing.properties
+- echo "key.pass=$KEY_PASSWORD" >> ~/.sign/signing.properties
 script:
 - ./gradlew assembleProd
 - git clone https://github.com/apptestai/ci_addon
