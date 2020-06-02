@@ -17,6 +17,7 @@ before_script:
 - CURPWD=$(pwd)
 - openssl aes-256-cbc -K $encrypted_64e89481033b_key -iv $encrypted_64e89481033b_iv -in keystore.jks.md5.enc -out keystore.jks.md5 -d
 - cat keystore.jks.md5 | base64 --decode > ${HOME}/keystore.jks
+- cp keystore.jks wikipedia.keystore
 - echo "" > ~/.sign/signing.properties
 - echo "keystore=${HOME}/keystore.jks" >> ~/.sign/signing.properties
 - echo "store.pass=$KEY_STORE_PASSWORD" >> ~/.sign/signing.properties
