@@ -13,6 +13,8 @@ android:
   - android-sdk-license-.+
   - google-gdk-license-.+
 before_script:
+- mkdir -p $HOME/.sign/
+- CURPWD=$(pwd)
 - echo "$SIGNING_KEY" | base64 --decode > keystore.jks
 - echo "" > ~/.sign/signing.properties
 - echo "keystore=${CURPWD}/keystore.jks" >> ~/.sign/signing.properties
